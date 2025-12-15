@@ -1,0 +1,7 @@
+ryu
+requests
+numpy
+scikit-learn
+pandas
+eventlet==0.30.2
+urllib3==1.26.15

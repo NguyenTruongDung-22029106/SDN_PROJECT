@@ -1,0 +1,27 @@
+version: '3.7'
+services:
+  trustlog-external:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trustlog-external:local
+    container_name: trustlog-external
+    restart: unless-stopped
+    networks:
+      - byfn
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./certs/trustlog:/etc/hyperledger/fabric:ro
+    environment:
+      # Example envs you may want to pass to your chaincode server
+      - CHAINCODE_LABEL=trustlog
+      - CHAINCODE_LISTEN_ADDRESS=0.0.0.0:9999
+
+networks:
+  byfn:
+    external: true
+
+# Notes:
+# - Mount the certs into ./certs/trustlog on the host (see enroll script). The peer(s) must be
+#   able to reach this container by the endpoint you configure in the chaincode metadata.

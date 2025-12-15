@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  fabric-node-adapter:
+    build: .
+    image: fabric-node-adapter:latest
+    ports:
+      - "3001:3001"
+    environment:
+      - CHANNEL_NAME=sdnchannel
+      - CHAINCODE_NAME=trustlog
+      - IDENTITY_LABEL=User1@org1.example.com
+      - PEER_ENDPOINT=grpcs://peer0.org1.example.com:7051
+      - GATEWAY_AS_LOCALHOST=false
+    volumes:
+      - ./wallet:/app/wallet
+      - ../fabric-samples:/fabric-samples
+    networks:
+      - fabric_test
+    restart: unless-stopped
+
+networks:
+  fabric_test:
+    external: true

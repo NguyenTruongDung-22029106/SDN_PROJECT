@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Blockchain Gateway REST API
+  blockchain-gateway:
+    build:
+      context: ../blockchain
+      dockerfile: Dockerfile
+    container_name: sdn-blockchain-gateway
+    ports:
+      - "3001:3001"
+    environment:
+      - FABRIC_NETWORK_PATH=/fabric-network
+      - CHANNEL_NAME=sdnchannel
+      - CHAINCODE_NAME=trustlog
+      - GATEWAY_AS_LOCALHOST=false
+      - PEER_ENDPOINT=grpcs://peer0.org1.example.com:7051
+      - PORT=3001
+    volumes:
+      - ../blockchain:/app
+      - ../fabric-samples:/fabric-samples
+    networks:
+      - sdn-network
+      - fabric_test
+    # depends_on:
+    #   - fabric-peer
+    restart: unless-stopped
+
+  # Ryu Controller (optional containerized version)
+  ryu-controller:
+    build:
+      context: ../ryu_app
+      dockerfile: Dockerfile
+    container_name: sdn-ryu-controller
+    ports:
+      - "6633:6633"
+      - "8080:8080"
+    environment:
+      - APP_TYPE=1
+      - PREVENTION=1
+      - BLOCKCHAIN_ENABLED=true
+    volumes:
+      - ../ryu_app:/app
+      - ../dataset:/dataset
+    networks:
+      - sdn-network
+    depends_on:
+      - blockchain-gateway
+    restart: unless-stopped
+
+  # Hyperledger Fabric Peer (reference - actual setup in test-network)
+  # fabric-peer:
+  #   image: hyperledger/fabric-peer:2.5
+  #   container_name: sdn-fabric-peer
+  #   environment:
+  #     - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+  #     - CORE_PEER_ID=peer0.org1.example.com
+  #     - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+  #     - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+  #     - CORE_PEER_CHAINCODEADDRESS=peer0.org1.example.com:7052
+  #     - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+  #     - CORE_PEER_LOCALMSPID=Org1MSP
+  #   volumes:
+  #     - /var/run/:/host/var/run/
+  #     - ../fabric-samples:/fabric-samples
+  #   networks:
+  #     - sdn-network
+  #   # Note: This is simplified. Use fabric-samples/test-network for full setup
+
+networks:
+  sdn-network:
+    driver: bridge
+  fabric_test:
+    external: true
+
+volumes:
+  fabric-data:
+  ryu-data:

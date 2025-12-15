@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+
+# ML Models
+*.pkl
+*.joblib
+*.h5
+*.model
+
+# Data files
+*.csv
+!result.csv
+!data/.gitkeep
+data/*.csv
+*.log
+*.dat
+
+# Mininet
+*.mn
+
+# Fabric
+fabric-samples/
+wallet/
+organizations/
+channel-artifacts/
+system-genesis-block/
+blockchain/chaincode/vendor/
+
+# Node.js
+**/node_modules/
+**/package-lock.json
+blockchain/blockchain/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Blockchain
+*.block
+*.tx
+ledger/
+
+# Logs
+logs/
+*.log.*
+ryu.log
+gateway.log
+blockchain.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Certificates & Keys
+*.pem
+*.key
+*.crt
+*.csr
+
+# Performance data
+*.pcap
+metrics/
+benchmark_results/
+
+# Local configuration
+local_config.ini
+.env

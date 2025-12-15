@@ -1,0 +1,19 @@
+{
+  "name": "fabric-gateway-node-adapter",
+  "version": "0.1.0",
+  "description": "Small REST adapter using fabric-network to submit/evaluate transactions for the SDN controller",
+  "main": "gateway_node_server.js",
+  "scripts": {
+    "start": "node gateway_node_server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fabric-ca-client": "^1.4.9",
+    "fabric-network": "^2.2.0",
+    "fs-extra": "^11.3.2",
+    "js-yaml": "^4.1.0"
+  }
+}

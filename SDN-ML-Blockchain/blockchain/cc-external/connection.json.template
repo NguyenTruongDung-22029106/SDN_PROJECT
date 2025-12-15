@@ -1,0 +1,15 @@
+{
+  "name": "trustlog-external",
+  "version": "1.0",
+  "description": "Connection metadata for external chaincode service trustlog",
+  "endpoint": "trustlog-external:9999",
+  "tls_required": true,
+  "tls_ca_cert_path": "/etc/hyperledger/fabric/cacerts/ca-cert.pem",
+  "client_cert_path": "/etc/hyperledger/fabric/client_pem.crt",
+  "client_key_path": "/etc/hyperledger/fabric/client_pem.key",
+  "chaincode_id": "trustlog:2.2"
+}
+
+# Notes:
+# - Adapt endpoint to the hostname/port reachable by peers inside the Docker network.
+# - This is a template; Fabric lifecycle requires packaging/metadata to mark chaincode as external.

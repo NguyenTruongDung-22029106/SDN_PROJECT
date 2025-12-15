@@ -25,7 +25,7 @@ def load_data():
     return df
 
 
-def plot_sfe_ssip_rfip(df):
+def plot_sfe_ssip_rfip(df, out_dir):
     # Giả sử mỗi dòng là một "thời điểm" liên tiếp
     x = range(len(df))
 
@@ -41,7 +41,7 @@ def plot_sfe_ssip_rfip(df):
     plt.ylabel("Speed of Flow entries (SFE)")
     plt.title("Speed of Flow Entries (SFE) over time")
     plt.tight_layout()
-    plt.savefig("sfe_timeseries.png", dpi=200)
+    plt.savefig(os.path.join(out_dir, "sfe_timeseries.png"), dpi=200)
     plt.close()
 
     # (b) SSIP
@@ -51,7 +51,7 @@ def plot_sfe_ssip_rfip(df):
     plt.ylabel("Speed of Source IP (SSIP)")
     plt.title("Speed of Source IP (SSIP) over time")
     plt.tight_layout()
-    plt.savefig("ssip_timeseries.png", dpi=200)
+    plt.savefig(os.path.join(out_dir, "ssip_timeseries.png"), dpi=200)
     plt.close()
 
     # (c) RFIP
@@ -61,11 +61,11 @@ def plot_sfe_ssip_rfip(df):
     plt.ylabel("Ratio of Flow Pair (RFIP)")
     plt.title("Ratio of Flow Pair (RFIP) over time")
     plt.tight_layout()
-    plt.savefig("rfip_timeseries.png", dpi=200)
+    plt.savefig(os.path.join(out_dir, "rfip_timeseries.png"), dpi=200)
     plt.close()
 
 
-def plot_flowcount(df):
+def plot_flowcount(df, out_dir):
     """
     Flowcount đơn giản: dùng cột 'sfe' làm proxy số flow entries,
     hoặc nếu sau này bạn có cột flowcount riêng thì sửa lại ở đây.
@@ -79,15 +79,19 @@ def plot_flowcount(df):
     plt.ylabel("Flowcount (cumulative)")
     plt.title("Flowcount over time")
     plt.tight_layout()
-    plt.savefig("flowcount_timeseries.png", dpi=200)
+    plt.savefig(os.path.join(out_dir, "flowcount_timeseries.png"), dpi=200)
     plt.close()
 
 
 def main():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    out_dir = os.path.join(base_dir, "output")
+    os.makedirs(out_dir, exist_ok=True)
+
     df = load_data()
-    plot_sfe_ssip_rfip(df)
-    plot_flowcount(df)
-    print("Đã vẽ xong: sfe_timeseries.png, ssip_timeseries.png, rfip_timeseries.png, flowcount_timeseries.png")
+    plot_sfe_ssip_rfip(df, out_dir)
+    plot_flowcount(df, out_dir)
+    print("Đã vẽ xong: sfe_timeseries.png, ssip_timeseries.png, rfip_timeseries.png, flowcount_timeseries.png trong thư mục 'output'")
 
 
 if __name__ == "__main__":

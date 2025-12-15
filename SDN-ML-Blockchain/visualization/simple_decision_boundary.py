@@ -28,7 +28,7 @@ def get_model(name: str):
     return svm.SVC()
 
 
-def plot_pair(df, feats, out_name, title, xlabel, ylabel, model_name):
+def plot_pair(df, feats, out_path, title, xlabel, ylabel, model_name):
     X = df[feats].to_numpy()
     y = df["label"].to_numpy().astype(int)
     clf = get_model(model_name)
@@ -40,13 +40,16 @@ def plot_pair(df, feats, out_name, title, xlabel, ylabel, model_name):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.tight_layout()
-    plt.savefig(out_name, dpi=200)
+    plt.savefig(out_path, dpi=200)
     plt.close(fig)
-    print(f"Saved {out_name}")
+    print(f"Saved {out_path}")
 
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    out_dir = os.path.join(base_dir, "output")
+    os.makedirs(out_dir, exist_ok=True)
+
     data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
     df = pd.read_csv(data_path)
     # Giữ đúng cột
@@ -54,8 +57,8 @@ def main():
     models = ["decision_tree", "random_forest", "svm", "naive_bayes"]
 
     for m in models:
-        out1 = f"{m}_graph_sfe_ssip.png"
-        out2 = f"{m}_graph_sfe_rfip.png"
+        out1 = os.path.join(out_dir, f"{m}_graph_sfe_ssip.png")
+        out2 = os.path.join(out_dir, f"{m}_graph_sfe_rfip.png")
         plot_pair(
             df,
             ["sfe", "ssip"],

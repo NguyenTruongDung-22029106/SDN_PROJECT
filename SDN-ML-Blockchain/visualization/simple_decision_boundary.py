@@ -24,21 +24,41 @@ def get_model(name: str):
         return RandomForestClassifier(n_estimators=100, random_state=0)
     if name == "naive_bayes":
         return GaussianNB()
-    # default: SVM
-    return svm.SVC()
+    # default: SVM (RBF) với class_weight ưu tiên bảo vệ lớp 0 mạnh hơn
+    return svm.SVC(kernel="rbf", C=1.0, gamma="scale", class_weight={0: 10, 1: 1})
 
 
-def plot_pair(df, feats, out_path, title, xlabel, ylabel, model_name):
+def _get_output_dir():
+    """Get output directory for visualization files"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(base_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
+
+def plot_pair(df, feats, out_name, title, xlabel, ylabel, model_name):
     X = df[feats].to_numpy()
     y = df["label"].to_numpy().astype(int)
     clf = get_model(model_name)
     clf.fit(X, y)
+
+    output_dir = _get_output_dir()
+    out_path = os.path.join(output_dir, out_name)
 
     fig = plt.figure(figsize=(8, 6))
     plot_decision_regions(X=X, y=y, clf=clf, legend=2)
     plt.title(f"{title} - {model_name}", size=14)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+
+    # Giới hạn trục để nhìn rõ vùng quyết định giống style tác giả:
+    # - Luôn giới hạn SFE trong [0, 200]
+    # - Với SSIP, cũng giới hạn [0, 200]
+    if xlabel.upper() in ("SFE", "SPEED OF FLOW ENTRY"):
+        plt.xlim(0, 200)
+    if ylabel.upper() in ("SSIP", "SPEED OF SOURCE IP"):
+        plt.ylim(0, 200)
+
     plt.tight_layout()
     plt.savefig(out_path, dpi=200)
     plt.close(fig)
@@ -47,18 +67,18 @@ def plot_pair(df, feats, out_path, title, xlabel, ylabel, model_name):
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    out_dir = os.path.join(base_dir, "output")
-    os.makedirs(out_dir, exist_ok=True)
-
-    data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
+    data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result_filtered.csv"))
+    if not os.path.exists(data_path):
+        # fallback để không vẽ hỏng nếu chưa lọc
+        data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
     df = pd.read_csv(data_path)
     # Giữ đúng cột
     df = df.rename(columns={df.columns[0]: "sfe", df.columns[1]: "ssip", df.columns[2]: "rfip", df.columns[3]: "label"})
     models = ["decision_tree", "random_forest", "svm", "naive_bayes"]
 
     for m in models:
-        out1 = os.path.join(out_dir, f"{m}_graph_sfe_ssip.png")
-        out2 = os.path.join(out_dir, f"{m}_graph_sfe_rfip.png")
+        out1 = f"{m}_graph_sfe_ssip.png"
+        out2 = f"{m}_graph_sfe_rfip.png"
         plot_pair(
             df,
             ["sfe", "ssip"],

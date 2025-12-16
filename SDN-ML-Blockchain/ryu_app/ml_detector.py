@@ -12,11 +12,14 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 import joblib
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_DATA_PATH = os.path.abspath(os.path.join(BASE_DIR, '..', 'dataset', 'result.csv'))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)  # Parent of ryu_app/
+DEFAULT_DATA_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, 'dataset', 'result_filtered.csv'))
 
 
 class MLDetector:
@@ -32,19 +35,28 @@ class MLDetector:
         self.model = None
         self.is_trained = False
         self.model_dir = BASE_DIR
+        # Threshold xác suất cho class 1 (attack), sẽ được học tự động khi train
+        self.threshold = 0.5
         
         # Resolve paths
         if model_path is None:
             model_path = DEFAULT_DATA_PATH
         elif not os.path.isabs(model_path):
-            model_path = os.path.abspath(os.path.join(BASE_DIR, model_path))
+            # Resolve relative path from project root, not from ryu_app/
+            model_path = os.path.abspath(os.path.join(PROJECT_ROOT, model_path))
         
         # Always require CSV training data; no fallback to untrained/default
         if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"Training data CSV not found at {model_path}. "
-                "Please provide dataset/result.csv (schema: sfe,ssip,rfip,label)."
-            )
+            # Nếu file filtered chưa có, thử fallback sang dataset/result.csv để không chặn khởi động
+            fallback = os.path.abspath(os.path.join(PROJECT_ROOT, "dataset", "result.csv"))
+            if os.path.exists(fallback):
+                print(f"Info: {model_path} not found, falling back to {fallback}")
+                model_path = fallback
+            else:
+                raise FileNotFoundError(
+                    f"Training data CSV not found at {model_path}. "
+                    "Provide dataset/result_filtered.csv hoặc dataset/result.csv (sfe,ssip,rfip,label)."
+                )
 
         ok = self.train(model_path)
         if not ok:
@@ -108,16 +120,47 @@ class MLDetector:
             X = df_num[['sfe', 'ssip', 'rfip']].to_numpy(dtype=float)
             y = df_num['label'].to_numpy(dtype=int)
             
-            # Create and train model
+            # Create model
             self._create_default_model()
-            self.model.fit(X, y)
+
+            # Nếu dữ liệu đủ lớn và có cả 2 lớp, tách validation để tìm threshold tốt nhất
+            if len(np.unique(y)) > 1 and len(y) > 50:
+                X_train, X_val, y_train, y_val = train_test_split(
+                    X, y, test_size=0.3, random_state=42, stratify=y
+                )
+                self.model.fit(X_train, y_train)
+
+                best_t = 0.5
+                best_f1 = -1.0
+                try:
+                    # Cố gắng dùng xác suất cho class 1 (attack)
+                    probs = self.model.predict_proba(X_val)[:, 1]
+                    for t in np.linspace(0.5, 0.95, 10):
+                        preds = (probs >= t).astype(int)
+                        f1 = f1_score(y_val, preds, zero_division=0)
+                        if f1 > best_f1:
+                            best_f1 = f1
+                            best_t = float(t)
+                    self.threshold = best_t
+                    print(f"✓ Auto-selected threshold={self.threshold:.2f} (val F1={best_f1:.3f})")
+                except Exception:
+                    # Nếu model không hỗ trợ predict_proba thì dùng mặc định 0.5
+                    self.threshold = 0.5
+            else:
+                # Dữ liệu quá ít hoặc chỉ có 1 lớp → train full, threshold mặc định
+                self.model.fit(X, y)
+                self.threshold = 0.5
+
+            # Sau khi chọn threshold, train lại model trên toàn bộ dữ liệu
+            if len(np.unique(y)) > 1:
+                self.model.fit(X, y)
+
             self.is_trained = True
+            print(f"✓ Model trained successfully with {len(X)} samples (threshold={self.threshold:.2f})")
             
-            print(f"✓ Model trained successfully with {len(X)} samples")
-            
-            # Save the model
+            # Save the model kèm threshold
             model_file = os.path.join(self.model_dir, f'ml_model_{self.model_type}.pkl')
-            joblib.dump(self.model, model_file)
+            joblib.dump({"model": self.model, "threshold": self.threshold}, model_file)
             print(f"✓ Model saved to {model_file}")
             
             return True
@@ -150,17 +193,30 @@ class MLDetector:
         fparams[0, 1] = features[1]  # ssip
         fparams[0, 2] = features[2]  # rfip
         
-        # Get prediction
-        prediction = self.model.predict(fparams)[0]
-        
-        # Get confidence if model supports probability
+        prediction = None
+        confidence = 0.8
+
+        # Ưu tiên dùng xác suất để áp dụng threshold đã học
         try:
             probabilities = self.model.predict_proba(fparams)[0]
+            # Giả sử class 1 là attack
+            if len(probabilities) == 2:
+                prob_attack = float(probabilities[1])
+            else:
+                prob_attack = float(probabilities[0])
+
+            t = getattr(self, "threshold", 0.5) or 0.5
+            prediction = 1 if prob_attack >= t else 0
             confidence = max(probabilities)
-        except:
+        except Exception:
+            # Fallback nếu không có predict_proba
+            prediction = int(self.model.predict(fparams)[0])
             confidence = 0.8  # Default confidence
         
-        print(f"ML Detection: Features={features}, Prediction={'Attack' if prediction==1 else 'Normal'}, Confidence={confidence:.2%}")
+        print(
+            f"ML Detection: Features={features}, Prediction={'Attack' if prediction==1 else 'Normal'}, "
+            f"Confidence={confidence:.2%}, Threshold={getattr(self, 'threshold', 0.5):.2f}"
+        )
         
         return int(prediction), float(confidence)
 
@@ -176,16 +232,22 @@ class MLDetector:
         """Save model to file"""
         if not os.path.isabs(filepath):
             filepath = os.path.join(self.model_dir, filepath)
-        joblib.dump(self.model, filepath)
-        print(f"✓ Model saved to {filepath}")
+        joblib.dump({"model": self.model, "threshold": self.threshold}, filepath)
+        print(f"✓ Model + threshold saved to {filepath}")
 
     def load_model(self, filepath):
         """Load model from file"""
         if not os.path.isabs(filepath):
             filepath = os.path.join(self.model_dir, filepath)
-        self.model = joblib.load(filepath)
+        obj = joblib.load(filepath)
+        if isinstance(obj, dict) and "model" in obj:
+            self.model = obj["model"]
+            self.threshold = float(obj.get("threshold", 0.5))
+        else:
+            self.model = obj
+            self.threshold = 0.5
         self.is_trained = True
-        print(f"✓ Model loaded from {filepath}")
+        print(f"✓ Model loaded from {filepath} (threshold={self.threshold:.2f})")
 
 
 if __name__ == '__main__':
@@ -223,8 +285,9 @@ if __name__ == '__main__':
     if not os.path.exists(args.data):
         raise FileNotFoundError(f"Training data not found at {args.data}")
 
-        for model_type in SUPPORTED_MODELS:
-            process_model(model_type, args)
+    # Nếu data tồn tại, lần lượt xử lý tất cả model
+    for model_type in SUPPORTED_MODELS:
+        process_model(model_type, args)
 
 
 # Utility function for batch classification

@@ -15,6 +15,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def _get_output_dir():
+    """Get output directory for visualization files"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(base_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
+
 def load_data():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     # mặc định đọc từ data/result.csv (runtime)
@@ -25,7 +33,9 @@ def load_data():
     return df
 
 
-def plot_sfe_ssip_rfip(df, out_dir):
+def plot_sfe_ssip_rfip(df):
+    output_dir = _get_output_dir()
+    
     # Giả sử mỗi dòng là một "thời điểm" liên tiếp
     x = range(len(df))
 
@@ -41,7 +51,7 @@ def plot_sfe_ssip_rfip(df, out_dir):
     plt.ylabel("Speed of Flow entries (SFE)")
     plt.title("Speed of Flow Entries (SFE) over time")
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "sfe_timeseries.png"), dpi=200)
+    plt.savefig(os.path.join(output_dir, "sfe_timeseries.png"), dpi=200)
     plt.close()
 
     # (b) SSIP
@@ -51,7 +61,7 @@ def plot_sfe_ssip_rfip(df, out_dir):
     plt.ylabel("Speed of Source IP (SSIP)")
     plt.title("Speed of Source IP (SSIP) over time")
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "ssip_timeseries.png"), dpi=200)
+    plt.savefig(os.path.join(output_dir, "ssip_timeseries.png"), dpi=200)
     plt.close()
 
     # (c) RFIP
@@ -61,15 +71,17 @@ def plot_sfe_ssip_rfip(df, out_dir):
     plt.ylabel("Ratio of Flow Pair (RFIP)")
     plt.title("Ratio of Flow Pair (RFIP) over time")
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "rfip_timeseries.png"), dpi=200)
+    plt.savefig(os.path.join(output_dir, "rfip_timeseries.png"), dpi=200)
     plt.close()
 
 
-def plot_flowcount(df, out_dir):
+def plot_flowcount(df):
     """
     Flowcount đơn giản: dùng cột 'sfe' làm proxy số flow entries,
     hoặc nếu sau này bạn có cột flowcount riêng thì sửa lại ở đây.
     """
+    output_dir = _get_output_dir()
+    
     x = range(len(df))
     flowcount = df["sfe"].cumsum()
 
@@ -79,19 +91,20 @@ def plot_flowcount(df, out_dir):
     plt.ylabel("Flowcount (cumulative)")
     plt.title("Flowcount over time")
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "flowcount_timeseries.png"), dpi=200)
+    plt.savefig(os.path.join(output_dir, "flowcount_timeseries.png"), dpi=200)
     plt.close()
 
 
 def main():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    out_dir = os.path.join(base_dir, "output")
-    os.makedirs(out_dir, exist_ok=True)
-
+    output_dir = _get_output_dir()
     df = load_data()
-    plot_sfe_ssip_rfip(df, out_dir)
-    plot_flowcount(df, out_dir)
-    print("Đã vẽ xong: sfe_timeseries.png, ssip_timeseries.png, rfip_timeseries.png, flowcount_timeseries.png trong thư mục 'output'")
+    plot_sfe_ssip_rfip(df)
+    plot_flowcount(df)
+    print(f"Đã vẽ xong các file vào {output_dir}:")
+    print("  - sfe_timeseries.png")
+    print("  - ssip_timeseries.png")
+    print("  - rfip_timeseries.png")
+    print("  - flowcount_timeseries.png")
 
 
 if __name__ == "__main__":

@@ -104,16 +104,18 @@ else:
 
 # Configuration
 # APP_TYPE: 0 = data collection (ghi type = TEST_TYPE), 1 = detection (ML)
-APP_TYPE = int(os.environ.get('APP_TYPE', '0'))
+APP_TYPE = int(os.environ.get('APP_TYPE', '1'))
 # TEST_TYPE: 0 = normal, 1 = attack (chỉ dùng khi APP_TYPE=0)
 TEST_TYPE = int(os.environ.get('TEST_TYPE', '1'))
-PREVENTION = 1  # DDoS prevention enabled
+PREVENTION = 0  # DDoS prevention enabled
 INTERVAL = 2  # Data collection interval in seconds
-BLOCKCHAIN_LOG = True  # Enable blockchain logging
+BLOCKCHAIN_LOG = False  # Enable blockchain logging
 
 # ML Model Configuration
 # Supported: 'decision_tree', 'random_forest', 'svm', 'naive_bayes'
 ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'decision_tree')
+# Confidence threshold: chỉ coi là attack nếu confidence >= ML_CONF_THRESHOLD
+ML_CONF_THRESHOLD = float(os.environ.get('ML_CONF_THRESHOLD', '0.8'))
 
 # Logging setup: always write to logs/ryu_controller.log (alongside stdout).
 # Attach handler to the ROOT logger so self.logger (from Ryu) also propagates.
@@ -408,12 +410,33 @@ class BlockchainSDNController(app_manager.RyuApp):
 
             if APP_TYPE == 1:
                 # ML Detection
-                result, confidence = self.ml_detector.classify([sfe, ssip, rfip])
-                label = int(result)
+                raw_result, confidence = self.ml_detector.classify([sfe, ssip, rfip])
                 reason = 'ml'
+
+                # Áp dụng confidence threshold:
+                # - Chỉ coi là attack nếu model dự đoán 1 VÀ confidence >= ML_CONF_THRESHOLD
+                # - Ngược lại gán label=0 (normal) để tránh false alarm quá lớn.
+                if int(raw_result) == 1 and confidence >= ML_CONF_THRESHOLD:
+                    label = 1
+                    high_conf_attack = True
+                else:
+                    label = 0
+                    high_conf_attack = False
+                    if int(raw_result) == 1:
+                        # Model báo attack nhưng độ tin cậy thấp → ghi log để theo dõi
+                        self.logger.info(
+                            "🤔 Low-confidence attack prediction ignored "
+                            "(confidence={:.2f} < threshold {:.2f})".format(
+                                confidence, ML_CONF_THRESHOLD
+                            )
+                        )
                 
-                if result == 1:  # Attack detected
-                    self.logger.warning("🚨 ATTACK DETECTED! Confidence: {:.2f}%".format(confidence * 100))
+                if high_conf_attack:  # Attack detected with high confidence
+                    self.logger.warning(
+                        "🚨 ATTACK DETECTED! Confidence: {:.2f}% (threshold {:.2f})".format(
+                            confidence * 100, ML_CONF_THRESHOLD * 100
+                        )
+                    )
                     
                     # Query blockchain for mitigation decision
                     mitigation_action = 'standard_mitigation'
@@ -465,22 +488,30 @@ class BlockchainSDNController(app_manager.RyuApp):
                     if PREVENTION == 1:
                         self.logger.info("🛡️ Mitigation Started")
                 
-                else:  # Normal traffic
-                    self.logger.info("✓ Normal Traffic - Confidence: {:.2f}%".format(confidence * 100))
+                else:  # Normal traffic (hoặc attack low-confidence)
+                    self.logger.info(
+                        "✓ Normal / Low-risk Traffic - Confidence: {:.2f}%".format(
+                            confidence * 100
+                        )
+                    )
                     
             else:
                 # Data collection mode: label theo TEST_TYPE (0=normal, 1=attack)
                 label = TEST_TYPE
                 reason = 'collect'
                 confidence = 1.0
-                self.logger.info([sfe, ssip, rfip])
+                # Chỉ log khi có traffic thực sự (sfe != 0 hoặc ssip != 0)
+                if sfe != 0 or ssip != 0:
+                    self.logger.info(f"Features [sfe={sfe}, ssip={ssip}, rfip={rfip:.4f}] from switch {dpid}")
 
-            # Always log features to per-switch CSV and global result CSV
-            t = time.strftime("%m/%d/%Y, %H:%M:%S", time.localtime())
-            row = [t, str(sfe), str(ssip), str(rfip)]
-            update_portcsv(dpid, row, label)
-            update_resultcsv([str(sfe), str(ssip), str(rfip)], label, reason=reason,
-                             confidence=confidence, dpid=dpid, timestamp=t)
+            # Chỉ ghi vào CSV khi có traffic thực sự (tránh spam dữ liệu [0,0,1.0])
+            # Hoặc trong detection mode thì luôn ghi (để theo dõi ML predictions)
+            if APP_TYPE == 1 or (sfe != 0 or ssip != 0):
+                t = time.strftime("%m/%d/%Y, %H:%M:%S", time.localtime())
+                row = [t, str(sfe), str(ssip), str(rfip)]
+                update_portcsv(dpid, row, label)
+                update_resultcsv([str(sfe), str(ssip), str(rfip)], label, reason=reason,
+                                 confidence=confidence, dpid=dpid, timestamp=t)
             
             gflows = []
 

@@ -91,7 +91,7 @@ cd /home/obito/SDN_Project/SDN-ML-Blockchain/fabric-samples/test-network
 # Dọn dẹp network cũ (nếu có)
 ./network.sh down
 
-# Khởi động network với CA
+# Khởi động network với CA  
 ./network.sh up createChannel -c sdnchannel -ca
 ```
 
@@ -409,7 +409,11 @@ docker logs -f orderer.example.com
 tail -f /home/obito/SDN_Project/SDN-ML-Blockchain/blockchain/gateway.log
 
 # Hoặc xem container logs
+## Nếu bạn chạy Gateway bằng Docker Compose hoặc Docker:
 docker logs -f sdn-blockchain-gateway 2>&1
+
+## Nếu bạn chạy Gateway bằng Node.js (không dùng Docker):
+tail -f /home/obito/SDN_Project/SDN-ML-Blockchain/blockchain/gateway.log
 ```
 
 ### Xem Ryu Logs

@@ -107,9 +107,9 @@ else:
 APP_TYPE = int(os.environ.get('APP_TYPE', '1'))
 # TEST_TYPE: 0 = normal, 1 = attack (chỉ dùng khi APP_TYPE=0)
 TEST_TYPE = int(os.environ.get('TEST_TYPE', '1'))
-PREVENTION = 0  # DDoS prevention enabled
+PREVENTION = 1  # DDoS prevention enabled
 INTERVAL = 2  # Data collection interval in seconds
-BLOCKCHAIN_LOG = False  # Enable blockchain logging
+BLOCKCHAIN_LOG = True  # Enable blockchain logging
 
 # ML Model Configuration
 # Supported: 'decision_tree', 'random_forest', 'svm', 'naive_bayes'
@@ -536,15 +536,20 @@ class BlockchainSDNController(app_manager.RyuApp):
                                     match=match, instructions=inst)
         datapath.send_msg(mod)
 
-    def block_port(self, datapath, portnumber, reason="DDoS Attack"):
-        """Block traffic from specific port"""
+    def block_port(self, datapath, portnumber, src_ip=None, dst_ip=None, reason="DDoS Attack"):
+        """Block only the attack flow from specific port and src/dst IP (if provided)"""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-        match = parser.OFPMatch(in_port=portnumber)
+        match_args = {'in_port': portnumber}
+        if src_ip:
+            match_args['ipv4_src'] = src_ip
+        if dst_ip:
+            match_args['ipv4_dst'] = dst_ip
+        match_args['eth_type'] = 0x0800  # IPv4
+        match = parser.OFPMatch(**match_args)
         actions = []
         flow_serial_no = get_flow_number()
         self.add_flow(datapath, 100, match, actions, flow_serial_no, hardtime=120)
-        
         # Log blocking action to blockchain
         if self.blockchain_client:
             try:
@@ -552,6 +557,8 @@ class BlockchainSDNController(app_manager.RyuApp):
                     'event_type': 'port_blocked',
                     'switch_id': str(datapath.id),
                     'port': portnumber,
+                    'src_ip': src_ip,
+                    'dst_ip': dst_ip,
                     'timestamp': int(time.time()),
                     'reason': reason,
                     'trust_score': 0.0,
@@ -595,8 +602,9 @@ class BlockchainSDNController(app_manager.RyuApp):
                     
                     # If switch has very low trust, block all traffic from this port
                     if trust_score < 0.3 and status == 'blocked':
-                        self.logger.warning(f"⛔ Switch {dpid} has low trust score ({trust_score:.2f}), blocking port {in_port}")
-                        self.block_port(datapath, in_port, reason="Low Trust Score")
+                        self.logger.warning(f"⛔ Switch {dpid} has low trust score ({trust_score:.2f}), blocking flow: port {in_port}, src {src}, dst {dst}")
+                        # Block only the attack flow (from src to dst via in_port)
+                        self.block_port(datapath, in_port, src_ip=src, dst_ip=dst, reason="Low Trust Score")
                         return
                     
                     # If suspicious, increase scrutiny
@@ -657,8 +665,8 @@ class BlockchainSDNController(app_manager.RyuApp):
                 if self.mitigation and PREVENTION:
                     if not (srcip in self.arp_ip_to_port[dpid][in_port]):
                         self.logger.warning(f"⚠️ IP Spoofing detected from port {in_port}, IP: {srcip}")
-                        self.logger.info(f"🚫 Blocking port {in_port}")
-                        self.block_port(datapath, in_port, reason="IP Spoofing Attack")
+                        self.logger.info(f"🚫 Blocking port {in_port} for src_ip={srcip} -> dst_ip={dstip}")
+                        self.block_port(datapath, in_port, src_ip=srcip, dst_ip=dstip, reason="IP Spoofing Attack")
                         return
 
                 match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, 

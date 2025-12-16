@@ -72,8 +72,9 @@ def main():
         # fallback để không vẽ hỏng nếu chưa lọc
         data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
     df = pd.read_csv(data_path)
-    # Giữ đúng cột
+    # Giữ đúng cột và kiểu dữ liệu
     df = df.rename(columns={df.columns[0]: "sfe", df.columns[1]: "ssip", df.columns[2]: "rfip", df.columns[3]: "label"})
+    df = df[['sfe', 'ssip', 'rfip', 'label']]
     models = ["decision_tree", "random_forest", "svm", "naive_bayes"]
 
     for m in models:

@@ -19,27 +19,33 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
     df = pd.read_csv(data_path)
-    X = df.iloc[:, 0:3].to_numpy()
-    y = df.iloc[:, 3].to_numpy()
-
+    # Đồng bộ với analyze_models.py: dùng đúng cột features và label
+    X = df[['sfe', 'ssip', 'rfip']].values
+    y = df['label'].values
     x_train, x_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=0
+        X, y, test_size=0.3, random_state=42, stratify=y
     )
 
+    import joblib
+    model_dir = os.path.abspath(os.path.join(base_dir, "..", "ryu_app"))
     models = {
-        "decision_tree": DecisionTreeClassifier(),
-        "random_forest": RandomForestClassifier(n_estimators=100, random_state=0),
-        "svm_linear": svm.SVC(kernel="linear", C=0.025),
-        "naive_bayes": GaussianNB(),
+        "decision_tree": os.path.join(model_dir, "ml_model_decision_tree.pkl"),
+        "random_forest": os.path.join(model_dir, "ml_model_random_forest.pkl"),
+        "svm": os.path.join(model_dir, "ml_model_svm.pkl"),
+        "naive_bayes": os.path.join(model_dir, "ml_model_naive_bayes.pkl"),
     }
-
-    print("=== Accuracy & 5-fold Cross-Validation (dataset/result.csv) ===")
-    for name, clf in models.items():
-        clf.fit(x_train, y_train)
+    print("=== Accuracy (pre-trained models, dataset/result.csv) ===")
+    for name, path in models.items():
+        if not os.path.exists(path):
+            print(f"{name:>13}: Model file not found: {path}")
+            continue
+        clf = joblib.load(path)
+        # Nếu model là dict, lấy ra object model
+        if isinstance(clf, dict) and "model" in clf:
+            clf = clf["model"]
         preds = clf.predict(x_test)
         acc = accuracy_score(y_test, preds)
-        cv_mean = cross_val_score(clf, x_train, y_train, cv=5).mean()
-        print(f"{name:>13}: Accuracy = {acc*100:6.2f}% | CV-mean = {cv_mean:6.4f}")
+        print(f"{name:>13}: Accuracy = {acc*100:6.2f}%")
 
 
 if __name__ == "__main__":

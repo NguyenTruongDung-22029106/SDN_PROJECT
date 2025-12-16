@@ -43,28 +43,31 @@ def plot_detection_rate_from_dataset():
         return
 
     df = pd.read_csv(data_path)
-    X = df.iloc[:, 0:3].to_numpy()
-    y = df.iloc[:, 3].to_numpy()
-
+    X = df[['sfe', 'ssip', 'rfip']].values
+    y = df['label'].values
     x_train, x_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=0
+        X, y, test_size=0.3, random_state=42, stratify=y
     )
 
+    import joblib
+    model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ryu_app"))
     models = {
-        "DecisionTree": DecisionTreeClassifier(),
-        "RandomForest": RandomForestClassifier(n_estimators=100, random_state=0),
-        "SVM": svm.SVC(),
-        "NaiveBayes": GaussianNB(),
+        "DecisionTree": os.path.join(model_dir, "ml_model_decision_tree.pkl"),
+        "RandomForest": os.path.join(model_dir, "ml_model_random_forest.pkl"),
+        "SVM": os.path.join(model_dir, "ml_model_svm.pkl"),
+        "NaiveBayes": os.path.join(model_dir, "ml_model_naive_bayes.pkl"),
     }
-
     dr_list = []
     far_list = []
     names = []
-
-    for name, clf in models.items():
-        clf.fit(x_train, y_train)
+    for name, path in models.items():
+        if not os.path.exists(path):
+            print(f"{name}: Model file not found: {path}")
+            continue
+        clf = joblib.load(path)
+        if isinstance(clf, dict) and "model" in clf:
+            clf = clf["model"]
         preds = clf.predict(x_test)
-
         DD = DN = FD = TN = 0
         for yt, yp in zip(y_test, preds):
             if yt == 1:
@@ -77,10 +80,8 @@ def plot_detection_rate_from_dataset():
                     FD += 1
                 else:
                     TN += 1
-
         dr = DD / (DD + DN) if (DD + DN) else 0
         far = FD / (FD + TN) if (FD + TN) else 0
-
         names.append(name)
         dr_list.append(dr * 100)
         far_list.append(far * 100)

@@ -29,7 +29,7 @@ def load_data():
     data_path = os.path.abspath(os.path.join(base_dir, "..", "data", "result.csv"))
     if not os.path.exists(data_path):
         raise FileNotFoundError(f"Không tìm thấy file dữ liệu: {data_path}")
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     return df
 
 

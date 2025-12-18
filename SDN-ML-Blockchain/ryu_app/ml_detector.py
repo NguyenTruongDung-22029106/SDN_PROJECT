@@ -6,6 +6,7 @@ from __future__ import division
 import numpy as np
 import os
 import pandas as pd
+import logging
 from sklearn import svm
 from sklearn import tree
 from sklearn.ensemble import RandomForestClassifier
@@ -19,7 +20,10 @@ import joblib
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)  # Parent of ryu_app/
-DEFAULT_DATA_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, 'dataset', 'result_filtered.csv'))
+DEFAULT_DATA_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, 'dataset', 'result.csv'))
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 class MLDetector:
@@ -45,25 +49,44 @@ class MLDetector:
             # Resolve relative path from project root, not from ryu_app/
             model_path = os.path.abspath(os.path.join(PROJECT_ROOT, model_path))
         
-        # Always require CSV training data; no fallback to untrained/default
-        if not os.path.exists(model_path):
-            # Nếu file filtered chưa có, thử fallback sang dataset/result.csv để không chặn khởi động
-            fallback = os.path.abspath(os.path.join(PROJECT_ROOT, "dataset", "result.csv"))
-            if os.path.exists(fallback):
-                print(f"Info: {model_path} not found, falling back to {fallback}")
-                model_path = fallback
-            else:
+        # Kiểm tra xem đã có model đã train sẵn chưa
+        model_file = os.path.join(self.model_dir, f'ml_model_{self.model_type}.pkl')
+        
+        if os.path.exists(model_file):
+            # Load model đã train sẵn (nhanh hơn, không cần train lại)
+            try:
+                self.load_model(model_file)
+                logger.info(f"✓ Loaded pre-trained {model_type} model from {model_file}")
+            except Exception as e:
+                logger.warning(f"Failed to load pre-trained model: {e}. Will train new model.")
+                # Nếu load thất bại, train lại
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(
+                        f"Training data CSV not found at {model_path}. "
+                        "Please run: python3 ryu_app/build_dataset.py to create dataset/result.csv (sfe,ssip,rfip,label)."
+                    )
+                ok = self.train(model_path)
+                if not ok:
+                    raise RuntimeError(
+                        f"Failed to train {model_type} model from {model_path}. "
+                        "Check CSV format and contents."
+                    )
+        else:
+            # Chưa có model → cần train mới
+            if not os.path.exists(model_path):
                 raise FileNotFoundError(
                     f"Training data CSV not found at {model_path}. "
-                    "Provide dataset/result_filtered.csv hoặc dataset/result.csv (sfe,ssip,rfip,label)."
+                    "Please run: python3 ryu_app/build_dataset.py to create dataset/result.csv (sfe,ssip,rfip,label). "
+                    f"Or train models first: python3 ryu_app/ml_detector.py --all"
                 )
-
-        ok = self.train(model_path)
-        if not ok:
-            raise RuntimeError(
-                f"Failed to train {model_type} model from {model_path}. "
-                "Check CSV format and contents."
-            )
+            
+            logger.info(f"No pre-trained model found. Training new {model_type} model from {model_path}")
+            ok = self.train(model_path)
+            if not ok:
+                raise RuntimeError(
+                    f"Failed to train {model_type} model from {model_path}. "
+                    "Check CSV format and contents."
+                )
 
     def _create_default_model(self):
         """Create untrained model based on model_type"""
@@ -113,18 +136,32 @@ class MLDetector:
             df_num = df_num.dropna()
             after = len(df_num)
             if before - after > 0:
-                print(f"Info: Dropped {before - after} rows with NaN from {data_path}")
+                logger.info(f"Info: Dropped {before - after} rows with NaN from {data_path}")
             if after == 0:
                 raise ValueError(f"No valid rows after removing NaN in {data_path}")
 
             X = df_num[['sfe', 'ssip', 'rfip']].to_numpy(dtype=float)
             y = df_num['label'].to_numpy(dtype=int)
             
+            # Kiểm tra số lượng class
+            unique_labels = np.unique(y)
+            num_classes = len(unique_labels)
+            
+            if num_classes < 2:
+                label_dist = df_num['label'].value_counts().to_dict()
+                raise ValueError(
+                    f"Dataset chỉ có {num_classes} class (cần ít nhất 2 class để train model). "
+                    f"Phân bố label: {label_dist}. "
+                    f"Vui lòng thu thập thêm dữ liệu: "
+                    f"chạy với APP_TYPE=0 TEST_TYPE=0 để thu thập normal traffic (label=0), "
+                    f"và APP_TYPE=0 TEST_TYPE=1 để thu thập attack traffic (label=1)."
+                )
+            
             # Create model
             self._create_default_model()
 
             # Nếu dữ liệu đủ lớn và có cả 2 lớp, tách validation để tìm threshold tốt nhất
-            if len(np.unique(y)) > 1 and len(y) > 50:
+            if num_classes > 1 and len(y) > 50:
                 X_train, X_val, y_train, y_val = train_test_split(
                     X, y, test_size=0.3, random_state=42, stratify=y
                 )
@@ -142,7 +179,7 @@ class MLDetector:
                             best_f1 = f1
                             best_t = float(t)
                     self.threshold = best_t
-                    print(f"✓ Auto-selected threshold={self.threshold:.2f} (val F1={best_f1:.3f})")
+                    logger.info(f"✓ Auto-selected threshold={self.threshold:.2f} (val F1={best_f1:.3f})")
                 except Exception:
                     # Nếu model không hỗ trợ predict_proba thì dùng mặc định 0.5
                     self.threshold = 0.5
@@ -156,17 +193,17 @@ class MLDetector:
                 self.model.fit(X, y)
 
             self.is_trained = True
-            print(f"✓ Model trained successfully with {len(X)} samples (threshold={self.threshold:.2f})")
+            logger.info(f"✓ Model trained successfully with {len(X)} samples (threshold={self.threshold:.2f})")
             
             # Save the model kèm threshold
             model_file = os.path.join(self.model_dir, f'ml_model_{self.model_type}.pkl')
             joblib.dump({"model": self.model, "threshold": self.threshold}, model_file)
-            print(f"✓ Model saved to {model_file}")
+            logger.info(f"✓ Model saved to {model_file}")
             
             return True
             
         except Exception as e:
-            print(f"Error training model: {e}")
+            logger.error(f"Error training model: {e}")
             return False
 
     def classify(self, features):
@@ -180,7 +217,7 @@ class MLDetector:
             (prediction, confidence): (0 for normal, 1 for attack, confidence score)
         """
         if not self.is_trained:
-            print("Warning: Model not trained. Using default classification.")
+            logger.warning("Warning: Model not trained. Using default classification.")
             # Simple heuristic for untrained model
             sfe, ssip, rfip = features
             if sfe > 50 or ssip > 30:
@@ -213,7 +250,7 @@ class MLDetector:
             prediction = int(self.model.predict(fparams)[0])
             confidence = 0.8  # Default confidence
         
-        print(
+        logger.debug(
             f"ML Detection: Features={features}, Prediction={'Attack' if prediction==1 else 'Normal'}, "
             f"Confidence={confidence:.2%}, Threshold={getattr(self, 'threshold', 0.5):.2f}"
         )
@@ -247,7 +284,7 @@ class MLDetector:
             self.model = obj
             self.threshold = 0.5
         self.is_trained = True
-        print(f"✓ Model loaded from {filepath} (threshold={self.threshold:.2f})")
+        logger.info(f"✓ Model loaded from {filepath} (threshold={self.threshold:.2f})")
 
 
 if __name__ == '__main__':
@@ -256,7 +293,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Train or save MLDetector models')
     parser.add_argument('--model', '-m', default='decision_tree', choices=['decision_tree', 'random_forest', 'svm', 'naive_bayes'], help='Model type')
-    parser.add_argument('--data', '-d', default=DEFAULT_DATA_PATH, help='Path to training CSV (dataset/result.csv)')
+    parser.add_argument('--data', '-d', default=DEFAULT_DATA_PATH, help='Path to training CSV (default: dataset/result.csv)')
     parser.add_argument('--force', '-f', action='store_true', help='Force retrain even if pre-trained model exists')
     parser.add_argument('--save-untrained', action='store_true', help='If training data missing, save an untrained default model to disk')
     parser.add_argument('--all', action='store_true', help='Train/save all supported models')
@@ -266,19 +303,28 @@ if __name__ == '__main__':
 
     def process_model(model_type, args):
         print(f"\n=== Processing model: {model_type} ===")
-        detector = MLDetector(model_type=model_type, model_path=args.data)
-        # If force retrain requested, run training if data exists
-        if args.force:
+        try:
+            detector = MLDetector(model_type=model_type, model_path=args.data)
+            # If force retrain requested, run training if data exists
+            if args.force:
                 ok = detector.train(args.data)
                 if ok:
                     detector.save_model(f'ml_model_{model_type}.pkl')
-        # Ensure trained model file exists
-        if detector.is_trained:
-            model_file = os.path.join(detector.model_dir, f'ml_model_{model_type}.pkl')
-            if os.path.exists(model_file):
-                print(f"Model is available: {model_file}")
-            else:
-                print(f"Warning: model marked trained but file not found at {model_file}")
+            # Ensure trained model file exists
+            if detector.is_trained:
+                model_file = os.path.join(detector.model_dir, f'ml_model_{model_type}.pkl')
+                if os.path.exists(model_file):
+                    print(f"✓ Model is available: {model_file}")
+                else:
+                    print(f"⚠ Warning: model marked trained but file not found at {model_file}")
+        except (ValueError, RuntimeError, FileNotFoundError) as e:
+            print(f"❌ Failed to process {model_type}: {e}")
+            print(f"   Skipping {model_type} and continuing with other models...")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error processing {model_type}: {e}")
+            return False
+        return True
 
     # Always train/save all models in one run (per request)
     args.all = True
@@ -286,8 +332,21 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"Training data not found at {args.data}")
 
     # Nếu data tồn tại, lần lượt xử lý tất cả model
+    success_count = 0
+    failed_models = []
     for model_type in SUPPORTED_MODELS:
-        process_model(model_type, args)
+        if process_model(model_type, args):
+            success_count += 1
+        else:
+            failed_models.append(model_type)
+    
+    print(f"\n{'='*60}")
+    print(f"Summary: {success_count}/{len(SUPPORTED_MODELS)} models processed successfully")
+    if failed_models:
+        print(f"Failed models: {', '.join(failed_models)}")
+        print(f"\n💡 Tip: Đảm bảo dataset có cả 2 class (label=0 và label=1)")
+        print(f"   Thu thập dữ liệu: APP_TYPE=0 TEST_TYPE=0 (normal) và APP_TYPE=0 TEST_TYPE=1 (attack)")
+    print(f"{'='*60}")
 
 
 # Utility function for batch classification

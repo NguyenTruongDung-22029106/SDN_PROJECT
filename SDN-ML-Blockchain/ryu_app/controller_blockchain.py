@@ -106,7 +106,7 @@ else:
 # APP_TYPE: 0 = data collection (ghi type = TEST_TYPE), 1 = detection (ML)
 APP_TYPE = int(os.environ.get('APP_TYPE', '1'))
 # TEST_TYPE: 0 = normal, 1 = attack (chỉ dùng khi APP_TYPE=0)
-TEST_TYPE = int(os.environ.get('TEST_TYPE', '1'))
+TEST_TYPE = int(os.environ.get('TEST_TYPE', '0'))
 PREVENTION = 1  # DDoS prevention enabled
 INTERVAL = 2  # Data collection interval in seconds
 BLOCKCHAIN_LOG = True  # Enable blockchain logging
@@ -261,6 +261,10 @@ class BlockchainSDNController(app_manager.RyuApp):
         self.ml_detector = None
         self.arp_ip_to_port = {}
         self.blocked_ports = {}
+        self.last_normal_traffic_log = {}  # Track last normal traffic log time per switch (to avoid spam)
+        self.last_trust_block = {}  # Track last time a port was blocked due to low trust (cooldown)
+        self.old_ssip_len_per_switch = {}  # Track old SSIP length per switch (for accurate SSIP calculation)
+        self.blocking_rules_count = {}  # Track số lượng blocking rules per switch để tránh flow table đầy
         
         # Initialize blockchain client (must succeed)
         if BLOCKCHAIN_ENABLED and BLOCKCHAIN_LOG:
@@ -273,6 +277,33 @@ class BlockchainSDNController(app_manager.RyuApp):
         if APP_TYPE == 1:
             self.ml_detector = MLDetector(model_type=ML_MODEL_TYPE)
             self.logger.info(f"✓ ML Detector initialized with {ML_MODEL_TYPE.upper()} algorithm")
+            
+            # Điều chỉnh ML_CONF_THRESHOLD dựa trên model threshold từ ML
+            # Model threshold là threshold tối ưu cho classification (0.5-0.95)
+            # Effective threshold = model threshold + offset (để chắc chắn hơn)
+            # Nhưng không thấp hơn ML_CONF_THRESHOLD mặc định
+            model_threshold = getattr(self.ml_detector, 'threshold', 0.5)
+            
+            # Tính effective threshold dựa trên model threshold:
+            if model_threshold < 0.6:
+                # Model threshold thấp → cần confidence cao hơn nhiều để tránh false positive
+                # Offset lớn: +0.3
+                effective_from_model = model_threshold + 0.3
+            elif model_threshold > 0.7:
+                # Model threshold cao → model đã chắc chắn, chỉ cần cao hơn một chút
+                # Offset nhỏ: +0.1 (nhưng không quá 1.0)
+                effective_from_model = min(model_threshold + 0.1, 1.0)
+            else:
+                # Model threshold trung bình → cao hơn vừa phải
+                # Offset trung bình: +0.2
+                effective_from_model = model_threshold + 0.2
+            
+            # Đảm bảo không thấp hơn ML_CONF_THRESHOLD mặc định
+            self.effective_conf_threshold = max(ML_CONF_THRESHOLD, effective_from_model)
+            
+            self.logger.info(f"✓ ML Confidence Threshold: {self.effective_conf_threshold:.2f} (model threshold: {model_threshold:.2f}, base: {ML_CONF_THRESHOLD:.2f})")
+        else:
+            self.effective_conf_threshold = ML_CONF_THRESHOLD
 
     def _flow_monitor(self):
         """Monitor flow statistics periodically"""
@@ -328,9 +359,8 @@ class BlockchainSDNController(app_manager.RyuApp):
         prev_flow_count = curr_flow_count
         return sfe
 
-    def _speed_of_source_ip(self, flows):
-        """Calculate speed of source IP addresses (SSIP)"""
-        global old_ssip_len
+    def _speed_of_source_ip(self, flows, dpid):
+        """Calculate speed of source IP addresses (SSIP) - per switch"""
         ssip = []
         
         for flow in flows:
@@ -342,8 +372,9 @@ class BlockchainSDNController(app_manager.RyuApp):
                         ssip.append(val)
         
         cur_ssip_len = len(ssip)
+        old_ssip_len = self.old_ssip_len_per_switch.get(dpid, 0)
         ssip_result = cur_ssip_len - old_ssip_len
-        old_ssip_len = cur_ssip_len
+        self.old_ssip_len_per_switch[dpid] = cur_ssip_len
         return ssip_result
 
     def _ratio_of_flowpair(self, flows):
@@ -400,7 +431,7 @@ class BlockchainSDNController(app_manager.RyuApp):
         if flags == 0:
             # Calculate features
             sfe = self._speed_of_flow_entries(gflows)
-            ssip = self._speed_of_source_ip(gflows)
+            ssip = self._speed_of_source_ip(gflows, dpid)
             rfip = self._ratio_of_flowpair(gflows)
 
             # Default label/reason values
@@ -414,9 +445,9 @@ class BlockchainSDNController(app_manager.RyuApp):
                 reason = 'ml'
 
                 # Áp dụng confidence threshold:
-                # - Chỉ coi là attack nếu model dự đoán 1 VÀ confidence >= ML_CONF_THRESHOLD
+                # - Chỉ coi là attack nếu model dự đoán 1 VÀ confidence >= effective_conf_threshold
                 # - Ngược lại gán label=0 (normal) để tránh false alarm quá lớn.
-                if int(raw_result) == 1 and confidence >= ML_CONF_THRESHOLD:
+                if int(raw_result) == 1 and confidence >= self.effective_conf_threshold:
                     label = 1
                     high_conf_attack = True
                 else:
@@ -425,16 +456,17 @@ class BlockchainSDNController(app_manager.RyuApp):
                     if int(raw_result) == 1:
                         # Model báo attack nhưng độ tin cậy thấp → ghi log để theo dõi
                         self.logger.info(
-                            "🤔 Low-confidence attack prediction ignored "
-                            "(confidence={:.2f} < threshold {:.2f})".format(
-                                confidence, ML_CONF_THRESHOLD
+                            "🤔 Low-confidence attack prediction ignored (Switch {}, "
+                            "SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f}, confidence={:.2f} < threshold {:.2f})".format(
+                                dpid, sfe, ssip, rfip, confidence, self.effective_conf_threshold
                             )
                         )
                 
                 if high_conf_attack:  # Attack detected with high confidence
                     self.logger.warning(
-                        "🚨 ATTACK DETECTED! Confidence: {:.2f}% (threshold {:.2f})".format(
-                            confidence * 100, ML_CONF_THRESHOLD * 100
+                        "🚨 ATTACK DETECTED! (Switch {}, SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f}) "
+                        "Confidence: {:.2f}% (threshold {:.2f})".format(
+                            dpid, sfe, ssip, rfip, confidence * 100, self.effective_conf_threshold * 100
                         )
                     )
                     
@@ -495,6 +527,33 @@ class BlockchainSDNController(app_manager.RyuApp):
                         )
                     )
                     
+                    # Gửi normal traffic event để tăng trust score
+                    # Chỉ gửi khi confidence < effective_conf_threshold (coi là normal traffic) và tránh spam (mỗi 30 giây)
+                    if self.blockchain_client and confidence < self.effective_conf_threshold:
+                        current_time = time.time()
+                        last_log_time = self.last_normal_traffic_log.get(dpid, 0)
+                        
+                        # Chỉ gửi nếu đã qua 30 giây từ lần gửi cuối cùng (tránh spam)
+                        if current_time - last_log_time >= 30:
+                            try:
+                                event_data = {
+                                    'event_type': 'normal_traffic',
+                                    'switch_id': str(dpid),
+                                    'timestamp': int(current_time),
+                                    'trust_score': 0.9,  # Trust cao cho normal traffic
+                                    'features': {
+                                        'sfe': float(sfe),
+                                        'ssip': float(ssip),
+                                        'rfip': float(rfip)
+                                    },
+                                    'confidence': float(confidence)
+                                }
+                                self.blockchain_client.record_event(event_data)
+                                self.last_normal_traffic_log[dpid] = current_time
+                                self.logger.info(f"⛓️ Normal traffic logged to blockchain (trust recovery for switch {dpid}, confidence={confidence*100:.2f}%)")
+                            except Exception as e:
+                                self.logger.debug(f"Blockchain logging error (normal traffic): {e}")
+                    
             else:
                 # Data collection mode: label theo TEST_TYPE (0=normal, 1=attack)
                 label = TEST_TYPE
@@ -502,7 +561,11 @@ class BlockchainSDNController(app_manager.RyuApp):
                 confidence = 1.0
                 # Chỉ log khi có traffic thực sự (sfe != 0 hoặc ssip != 0)
                 if sfe != 0 or ssip != 0:
-                    self.logger.info(f"Features [sfe={sfe}, ssip={ssip}, rfip={rfip:.4f}] from switch {dpid}")
+                    label_text = "ATTACK" if label == 1 else "NORMAL"
+                    self.logger.info(
+                        f"📊 Data Collection Mode (TEST_TYPE={TEST_TYPE}): "
+                        f"Features [sfe={sfe}, ssip={ssip}, rfip={rfip:.4f}] from switch {dpid} → Label={label} ({label_text})"
+                    )
 
             # Chỉ ghi vào CSV khi có traffic thực sự (tránh spam dữ liệu [0,0,1.0])
             # Hoặc trong detection mode thì luôn ghi (để theo dõi ML predictions)
@@ -536,20 +599,135 @@ class BlockchainSDNController(app_manager.RyuApp):
                                     match=match, instructions=inst)
         datapath.send_msg(mod)
 
-    def block_port(self, datapath, portnumber, src_ip=None, dst_ip=None, reason="DDoS Attack"):
-        """Block only the attack flow from specific port and src/dst IP (if provided)"""
+    def block_port(self, datapath, portnumber, src_ip=None, dst_ip=None, reason="DDoS Attack", block_mode="flow_specific"):
+        """
+        Block traffic from specific port with different blocking modes
+        
+        Args:
+            portnumber: Port to block
+            src_ip: Source IP (optional)
+            dst_ip: Destination IP (optional)
+            reason: Reason for blocking
+            block_mode: 
+                - "flow_specific": Block specific flow (src_ip + dst_ip) - default for backward compatibility
+                - "source_ip": Block all flows from src_ip (any destination) - recommended for DDoS
+        """
+        dpid = datapath.id
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-        match_args = {'in_port': portnumber}
-        if src_ip:
-            match_args['ipv4_src'] = src_ip
-        if dst_ip:
-            match_args['ipv4_dst'] = dst_ip
-        match_args['eth_type'] = 0x0800  # IPv4
+        
+        # BẢO VỆ: Không cho phép block port 1 (uplink port) trên các leaf switches
+        # Port 1 là port kết nối với central switch (s1) - block sẽ làm mất routing
+        if portnumber == 1 and dpid != 1:
+            if not src_ip:
+                self.logger.debug(f"Cannot block uplink port without source IP. Aborting.")
+                return
+            
+            # Kiểm tra giới hạn blocking rules trước khi tạo rules
+            if dpid not in self.blocking_rules_count:
+                self.blocking_rules_count[dpid] = 0
+            
+            MAX_BLOCKING_RULES = 50
+            if self.blocking_rules_count[dpid] >= MAX_BLOCKING_RULES:
+                self.logger.warning(
+                    f"⚠️ Switch {dpid} has reached maximum blocking rules ({MAX_BLOCKING_RULES}). "
+                    "Skipping uplink port blocking to prevent flow table overflow."
+                )
+                return
+            
+            # Thay vì block port 1, block source IP trên các port host (port 2-5)
+            # Không block trên port 1 để tránh ảnh hưởng routing
+            # Tạo blocking rules cho từng port host (2-5)
+            host_ports = [2, 3, 4, 5]  # Ports cho hosts trên leaf switches
+            blocked_count = 0
+            for host_port in host_ports:
+                # Kiểm tra giới hạn trước mỗi lần tạo rule
+                if self.blocking_rules_count[dpid] >= MAX_BLOCKING_RULES:
+                    break
+                
+                match_args = {'in_port': host_port, 'ipv4_src': src_ip, 'eth_type': 0x0800}
+                match = parser.OFPMatch(**match_args)
+                actions = []
+                flow_serial_no = get_flow_number()
+                self.add_flow(datapath, 100, match, actions, flow_serial_no, hardtime=120)
+                self.blocking_rules_count[dpid] = self.blocking_rules_count.get(dpid, 0) + 1
+                blocked_count += 1
+            
+            # Chỉ log nếu có ít nhất 1 rule được tạo
+            if blocked_count > 0:
+                self.logger.debug(
+                    f"Blocking source IP {src_ip} on host ports {host_ports[:blocked_count]} "
+                    f"(port 1 protected to maintain routing)"
+                )
+                action_desc = f"source_ip_blocked_on_host_ports_uplink_protected"
+                
+                # Log blocking action to blockchain
+                if self.blockchain_client:
+                    try:
+                        event_data = {
+                            'event_type': 'port_blocked',
+                            'switch_id': str(dpid),
+                            'port': portnumber,
+                            'src_ip': src_ip,
+                            'dst_ip': dst_ip,
+                            'timestamp': int(time.time()),
+                            'reason': reason,
+                            'trust_score': 0.0,
+                            'action': action_desc,
+                            'block_mode': 'source_ip'
+                        }
+                        self.blockchain_client.record_event(event_data)
+                        self.logger.info(f"⛓️ Port blocking logged to blockchain (mode: source_ip, host ports only)")
+                    except Exception as e:
+                        self.logger.error(f"Blockchain logging error: {e}")
+            else:
+                # Không có rule nào được tạo (đã đạt giới hạn)
+                self.logger.debug(f"Could not create blocking rules for uplink port (reached limit)")
+            
+            return  # Đã xử lý xong, không cần tiếp tục
+        else:
+            # Giới hạn số lượng blocking rules để tránh flow table đầy
+            if dpid not in self.blocking_rules_count:
+                self.blocking_rules_count[dpid] = 0
+            
+            MAX_BLOCKING_RULES = 50  # Giới hạn tối đa 50 blocking rules per switch
+            if self.blocking_rules_count[dpid] >= MAX_BLOCKING_RULES:
+                self.logger.warning(
+                    f"⚠️ Switch {dpid} has reached maximum blocking rules ({MAX_BLOCKING_RULES}). "
+                    "Skipping new blocking rule to prevent flow table overflow."
+                )
+                return
+            
+            match_args = {'in_port': portnumber}
+            
+            # Xử lý block_mode
+            if block_mode == "source_ip" and src_ip:
+                # Block tất cả flow từ IP nguồn (hiệu quả với DDoS/IP spoofing)
+                match_args['ipv4_src'] = src_ip
+                match_args['eth_type'] = 0x0800
+                self.logger.warning(f"🚫 BLOCKING ALL FLOWS FROM {src_ip} on port {portnumber} for 120s")
+                action_desc = f"source_ip_blocked_for_120s"
+            else:
+                # Block flow cụ thể (mặc định - backward compatible)
+                if src_ip:
+                    match_args['ipv4_src'] = src_ip
+                if dst_ip:
+                    match_args['ipv4_dst'] = dst_ip
+                    match_args['eth_type'] = 0x0800
+                if src_ip and dst_ip:
+                    self.logger.info(f"🚫 BLOCKING FLOW: port {portnumber}, {src_ip} → {dst_ip} for 120s")
+                else:
+                    self.logger.info(f"🚫 BLOCKING: port {portnumber} for 120s")
+                action_desc = f"flow_blocked_for_120s"
+        
         match = parser.OFPMatch(**match_args)
         actions = []
         flow_serial_no = get_flow_number()
         self.add_flow(datapath, 100, match, actions, flow_serial_no, hardtime=120)
+        
+        # Tăng counter cho blocking rules
+        self.blocking_rules_count[dpid] = self.blocking_rules_count.get(dpid, 0) + 1
+        
         # Log blocking action to blockchain
         if self.blockchain_client:
             try:
@@ -562,10 +740,11 @@ class BlockchainSDNController(app_manager.RyuApp):
                     'timestamp': int(time.time()),
                     'reason': reason,
                     'trust_score': 0.0,
-                    'action': 'blocked_for_120s'
+                    'action': action_desc,
+                    'block_mode': block_mode
                 }
                 self.blockchain_client.record_event(event_data)
-                self.logger.info(f"⛓️ Port blocking logged to blockchain")
+                self.logger.info(f"⛓️ Port blocking logged to blockchain (mode: {block_mode})")
             except Exception as e:
                 self.logger.error(f"Blockchain logging error: {e}")
 
@@ -593,19 +772,23 @@ class BlockchainSDNController(app_manager.RyuApp):
         dpid = datapath.id
         
         # Check trust score from blockchain before processing
-        if self.blockchain_client and hasattr(self, 'mitigation'):
+        # NOTE: Trong data collection mode (APP_TYPE=0), tắt trust-based blocking để có thể thu thập dữ liệu sạch
+        if self.blockchain_client and hasattr(self, 'mitigation') and APP_TYPE == 1:
             try:
                 trust_log = self.blockchain_client.query_trust_log(str(dpid))
                 if trust_log:
                     trust_score = trust_log.get('current_trust', 1.0)
                     status = trust_log.get('status', 'trusted')
                     
-                    # If switch has very low trust, block all traffic from this port
+                    # Trust score thấp chỉ dùng để quyết định mức độ mitigation, không tự động block
+                    # Chỉ block khi có attack thực sự được phát hiện (trong flow_stats_reply_handler)
+                    # Trust score < 0.3 chỉ log warning, không block ngay
                     if trust_score < 0.3 and status == 'blocked':
-                        self.logger.warning(f"⛔ Switch {dpid} has low trust score ({trust_score:.2f}), blocking flow: port {in_port}, src {src}, dst {dst}")
-                        # Block only the attack flow (from src to dst via in_port)
-                        self.block_port(datapath, in_port, src_ip=src, dst_ip=dst, reason="Low Trust Score")
-                        return
+                        self.logger.debug(
+                            f"⚠️ Switch {dpid} has low trust score ({trust_score:.2f}), "
+                            f"will apply aggressive mitigation if attack detected"
+                        )
+                        # Không block ngay, chỉ đánh dấu để áp dụng mitigation mạnh hơn khi có attack
                     
                     # If suspicious, increase scrutiny
                     if status == 'suspicious':
@@ -665,12 +848,42 @@ class BlockchainSDNController(app_manager.RyuApp):
                 if self.mitigation and PREVENTION:
                     if not (srcip in self.arp_ip_to_port[dpid][in_port]):
                         self.logger.warning(f"⚠️ IP Spoofing detected from port {in_port}, IP: {srcip}")
-                        self.logger.info(f"🚫 Blocking port {in_port} for src_ip={srcip} -> dst_ip={dstip}")
-                        self.block_port(datapath, in_port, src_ip=srcip, dst_ip=dstip, reason="IP Spoofing Attack")
+
+                        # warn_only (self.mitigation == 0) → chỉ cảnh báo, không block
+                        if self.mitigation == 1:
+                            # STANDARD_MITIGATION → block THEO FLOW (src,dst)
+                            self.logger.info(
+                                f"🚫 Standard mode: Blocking FLOW {srcip} → {dstip} on port {in_port}"
+                            )
+                            self.block_port(
+                                datapath,
+                                in_port,
+                                src_ip=srcip,
+                                dst_ip=dstip,
+                                reason="IP Spoofing Attack - Standard (flow-specific)",
+                                block_mode="flow_specific",
+                            )
+
+                        elif self.mitigation == 2:
+                            # BLOCK_IMMEDIATELY → block THEO IP NGUỒN
+                            self.logger.warning(
+                                f"🚫 Aggressive mode: Blocking ALL FLOWS from {srcip} on port {in_port}"
+                            )
+                            self.block_port(
+                                datapath,
+                                in_port,
+                                src_ip=srcip,
+                                reason="IP Spoofing Attack - Aggressive (source_ip)",
+                                block_mode="source_ip",
+                            )
+
                         return
 
-                match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, 
-                                        ipv4_src=srcip, ipv4_dst=dstip)
+                match = parser.OFPMatch(
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ipv4_src=srcip,
+                    ipv4_dst=dstip,
+                )
 
                 flow_serial_no = get_flow_number()
                 if msg.buffer_id != ofproto.OFP_NO_BUFFER:

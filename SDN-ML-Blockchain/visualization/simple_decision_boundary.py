@@ -14,6 +14,8 @@ from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 from mlxtend.plotting import plot_decision_regions
 
 
@@ -24,8 +26,12 @@ def get_model(name: str):
         return RandomForestClassifier(n_estimators=100, random_state=0)
     if name == "naive_bayes":
         return GaussianNB()
-    # default: SVM (RBF) với class_weight ưu tiên bảo vệ lớp 0 mạnh hơn
-    return svm.SVC(kernel="rbf", C=1.0, gamma="scale", class_weight={0: 10, 1: 1})
+    # SVM: Đồng bộ với ml_detector.py - dùng Pipeline với StandardScaler
+    # Sử dụng 'balanced' để tự động cân bằng classes
+    return Pipeline([
+        ('scaler', StandardScaler()),
+        ('clf', svm.SVC(kernel="rbf", C=1.0, gamma="scale", probability=True, class_weight='balanced'))
+    ])
 
 
 def _get_output_dir():
@@ -46,6 +52,10 @@ def plot_pair(df, feats, out_name, title, xlabel, ylabel, model_name):
     out_path = os.path.join(output_dir, out_name)
 
     fig = plt.figure(figsize=(8, 6))
+    
+    # Vẽ decision boundary
+    # Nếu là Pipeline (SVM), plot_decision_regions sẽ tự động xử lý
+    # Bỏ tham số resolution vì không được hỗ trợ trong mlxtend
     plot_decision_regions(X=X, y=y, clf=clf, legend=2)
     plt.title(f"{title} - {model_name}", size=14)
     plt.xlabel(xlabel)
@@ -67,11 +77,11 @@ def plot_pair(df, feats, out_name, title, xlabel, ylabel, model_name):
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result_filtered.csv"))
+    # Sử dụng dataset/result.csv (không còn result_filtered.csv)
+    data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
     if not os.path.exists(data_path):
-        # fallback để không vẽ hỏng nếu chưa lọc
-        data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
-    df = pd.read_csv(data_path)
+        raise FileNotFoundError(f"Dataset not found: {data_path}. Please run: python3 ryu_app/build_dataset.py")
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     # Giữ đúng cột và kiểu dữ liệu
     df = df.rename(columns={df.columns[0]: "sfe", df.columns[1]: "ssip", df.columns[2]: "rfip", df.columns[3]: "label"})
     df = df[['sfe', 'ssip', 'rfip', 'label']]

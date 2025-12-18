@@ -261,7 +261,19 @@ A: `dataset/result.csv` - Committed training dataset. Format used for training: 
 Note: Runtime CSVs produced by the running controller are stored under `data/` (for example `data/switch_1_data.csv` and `data/result.csv`) and include an extended schema used for logging/detection: `time,sfe,ssip,rfip,label,reason,confidence,dpid`.
 
 **Q: Làm sao re-train model?**  
-A: Xóa file `ryu_app/ml_model_*.pkl`, controller sẽ tự động train lại
+A: 
+1. Xóa file `ryu_app/ml_model_*.pkl`
+2. Hoặc chạy: `python3 ryu_app/ml_detector.py --all`
+3. Controller sẽ tự động train lại khi khởi động nếu không tìm thấy .pkl file
 
 **Q: Model lưu ở đâu?**  
-A: `ryu_app/ml_model_{model_type}.pkl` (dùng joblib)
+A: `ryu_app/ml_model_{model_type}.pkl` (dùng joblib). Controller ưu tiên load file .pkl này khi khởi động (không train lại mỗi lần).
+
+**Q: Confidence threshold được tính như thế nào?**
+A: 
+- Base threshold: `ML_CONF_THRESHOLD` (mặc định 0.8)
+- Dynamic adjustment dựa trên model threshold (từ .pkl):
+  - Nếu model threshold < 0.6 → effective = max(ML_CONF_THRESHOLD, 0.75)
+  - Nếu model threshold > 0.7 → effective = max(ML_CONF_THRESHOLD, model_threshold - 0.1)
+  - Ngược lại → effective = ML_CONF_THRESHOLD
+- Mục đích: Giảm false positives, tăng độ chính xác detection

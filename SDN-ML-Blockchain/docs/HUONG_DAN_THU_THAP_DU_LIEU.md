@@ -1,11 +1,27 @@
 # Hướng Dẫn Thu Thập Dữ Liệu Thực Tế
 
 ## Trạng Thái Hiện Tại
-✅ Ryu Controller đang chạy (PID: 14269)
-✅ Gateway API đang chạy (PID: 14257)
+✅ Ryu Controller đang chạy
+✅ Gateway API đang chạy
 ✅ Controller ở chế độ **Data Collection** (APP_TYPE = 0)
 
+**Lưu ý**: Trong chế độ `APP_TYPE=0`:
+- ML detection bị tắt (không phân loại traffic)
+- Trust-based blocking bị tắt (cho phép thu thập dữ liệu sạch)
+- Dữ liệu được ghi nhãn theo `TEST_TYPE` (0=normal, 1=attack)
+
 ## Các Bước Thu Thập Dữ Liệu
+
+### Bước 0: Khởi động Controller với Data Collection Mode
+
+**QUAN TRỌNG**: Phải set `APP_TYPE=0` để tắt ML detection và blocking:
+
+```bash
+cd /home/obito/SDN_Project/SDN-ML-Blockchain
+APP_TYPE=0 TEST_TYPE=0 ryu-manager ryu_app/controller_blockchain.py
+# TEST_TYPE=0: thu thập Normal traffic
+# TEST_TYPE=1: thu thập Attack traffic
+```
 
 ### Bước 1: Chạy Mininet (Terminal mới)
 
@@ -14,13 +30,6 @@ Mở terminal mới và chạy:
 ```bash
 cd /home/obito/SDN_Project/SDN-ML-Blockchain/topology
 sudo python3 custom_topo.py
-```
-
-Hoặc nếu muốn tự động generate traffic:
-
-```bash
-cd /home/obito/SDN_Project/SDN-ML-Blockchain/topology
-TEST_TYPE=mixed TEST_TIME=60 sudo -E python3 custom_topo.py
 ```
 
 ### Bước 2: Generate Traffic (nếu dùng manual mode)

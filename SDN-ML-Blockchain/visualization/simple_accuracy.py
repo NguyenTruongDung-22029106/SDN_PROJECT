@@ -18,7 +18,7 @@ from sklearn.metrics import accuracy_score
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     # Đồng bộ với analyze_models.py: dùng đúng cột features và label
     X = df[['sfe', 'ssip', 'rfip']].values
     y = df['label'].values

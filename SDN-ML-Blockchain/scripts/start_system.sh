@@ -183,17 +183,25 @@ echo -e "\n${YELLOW}[6/6] Starting Ryu SDN Controller...${NC}"
 
 cd "${RYU_DIR}"
 
-# Check if ML models exist
+# Check if ML models exist (controller will auto-train if missing, but warn user)
 if ! ls ml_model_*.pkl 1> /dev/null 2>&1; then
-    echo -e "${RED}✗ ML model files not found${NC}"
-    echo "Run: python3 -c 'from ml_detector import MLDetector; d=MLDetector(); d.train(\"../dataset/result.csv\"); d.save_model()'"
-    exit 1
+    echo -e "${YELLOW}⚠ ML model files not found${NC}"
+    echo "  Controller will auto-train from dataset/result.csv on first run"
+    echo "  To pre-train models, run: python3 ryu_app/ml_detector.py --all"
+    echo "  Or ensure dataset/result.csv exists and controller will train automatically"
 fi
 
 # Start Ryu Controller in background
 echo "  → Starting Ryu Controller..."
 mkdir -p "${PROJECT_ROOT}/logs"
-nohup ryu-manager --observe-links controller_blockchain.py > "${PROJECT_ROOT}/logs/ryu_controller.log" 2>&1 &
+
+# Check ML_MODEL_TYPE environment variable (default: random_forest)
+ML_MODEL_TYPE=${ML_MODEL_TYPE:-random_forest}
+echo "    Using ML model: ${ML_MODEL_TYPE}"
+
+# Redirect stdout/stderr to /dev/null - logger will handle all logging to file
+# Note: Controller will auto-load .pkl files if available, otherwise train from dataset/result.csv
+nohup env ML_MODEL_TYPE="${ML_MODEL_TYPE}" ryu-manager --observe-links controller_blockchain.py > /dev/null 2>&1 &
 RYU_PID=$!
 
 # Wait for controller to initialize
@@ -227,7 +235,7 @@ echo "    - Test: curl http://localhost:3001/health"
 echo ""
 echo "  • Ryu Controller: ✓ (port 6633)"
 echo "    - PID: ${RYU_PID}"
-echo "    - ML Model: Decision Tree"
+echo "    - ML Model: ${ML_MODEL_TYPE:-random_forest} (default, set ML_MODEL_TYPE env to change)"
 echo ""
 echo "Next Steps:"
 echo "  1. Test Gateway API:"

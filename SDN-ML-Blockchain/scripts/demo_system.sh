@@ -23,7 +23,7 @@ cd "$PROJECT_ROOT"
 echo -e "${YELLOW}[DEMO 1/4]${NC} System Components Overview"
 echo -e "${GREEN}─────────────────────────────────────────────────${NC}"
 echo "✅ SDN Controller: controller_blockchain.py"
-echo "✅ ML Detector: ml_detector.py (SVM, DT, RF, NB)"
+echo "✅ ML Detector: ml_detector.py (Random Forest, Decision Tree, SVM, Naive Bayes)"
 echo "✅ Blockchain: Hyperledger Fabric (real network required)"
 echo "✅ Network: Mininet topologies"
 echo ""
@@ -41,7 +41,7 @@ from ryu_app.ml_detector import MLDetector
 
 print("Testing different traffic patterns:\n")
 
-detector = MLDetector(model_type='svm')
+detector = MLDetector(model_type='random_forest')  # Default model type
 
 # Test Case 1: Normal traffic
 print("🔵 Test 1: Normal Traffic")
@@ -180,7 +180,7 @@ print("│ Scenario: DDoS Attack on Network Switch                │")
 print("└─────────────────────────────────────────────────────────┘\n")
 
 # Initialize components
-detector = MLDetector(model_type='svm')
+detector = MLDetector(model_type='random_forest')  # Default model type
 try:
     blockchain = BlockchainClient()
 except Exception:

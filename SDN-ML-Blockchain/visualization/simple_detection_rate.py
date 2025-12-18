@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.abspath(os.path.join(base_dir, "..", "dataset", "result.csv"))
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     X = df[['sfe', 'ssip', 'rfip']].values
     y = df['label'].values
     x_train, x_test, y_train, y_test = train_test_split(

@@ -63,7 +63,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from ryu_app.ml_detector import MLDetector
 
 try:
-    detector = MLDetector(model_type='svm')
+    detector = MLDetector(model_type='random_forest')  # Default model type
     prediction, confidence = detector.classify([100, 50, 10])
     print(f"  ✅ PASS - ML Detection working (prediction={prediction}, confidence={confidence:.2f})")
     sys.exit(0)

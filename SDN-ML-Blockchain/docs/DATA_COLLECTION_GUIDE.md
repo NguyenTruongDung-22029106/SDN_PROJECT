@@ -5,8 +5,12 @@ Mục tiêu: thu thập dữ liệu cân bằng, đa dạng cho huấn luyện 4
 ## 1. Chuẩn bị
 - Mở 2 terminal: một cho controller, một cho Mininet.
 - Đặt biến môi trường để controller ghi dữ liệu thu thập:
-  - `APP_TYPE=0` (chế độ thu thập)
+  - `APP_TYPE=0` (chế độ thu thập - **QUAN TRỌNG**: Tắt ML detection và trust-based blocking)
   - `TEST_TYPE=0` cho Normal, `TEST_TYPE=1` cho Attack.
+- **Lưu ý**: Trong chế độ `APP_TYPE=0`, hệ thống sẽ:
+  - Tắt ML detection (không phân loại traffic)
+  - Tắt trust-based blocking (cho phép thu thập dữ liệu sạch)
+  - Ghi nhãn dữ liệu theo `TEST_TYPE` (0=normal, 1=attack)
 
 ## 2. Thu thập Normal (label=0)
 1) Chạy controller:
@@ -54,17 +58,26 @@ h1 ping -f -c 200 10.0.0.2
 
 ## 4. Sau thu thập
 1) Lọc và dựng dataset (dùng |SFE|, |SSIP|, lọc reason=collect):
-```
+```bash
+# Mặc định: lọc reason=collect, lấy absolute value cho SFE/SSIP
+python3 ryu_app/build_dataset.py
+# Hoặc chỉ định rõ:
 python3 ryu_app/build_dataset.py --src data/result.csv --out dataset/result.csv --reason collect
 ```
 2) Huấn luyện 4 mô hình và xuất .pkl:
-```
-python3 ryu_app/ml_detector.py --all --data dataset/result.csv
+```bash
+# Train tất cả models và lưu .pkl files
+python3 ryu_app/ml_detector.py --all
+# Models sẽ được lưu tại: ryu_app/ml_model_{model_type}.pkl
+# Controller sẽ tự động load các file .pkl này khi khởi động (không cần train lại)
 ```
 
 ## 5. Lưu ý quan trọng
-- Luôn `APP_TYPE=0` khi thu thập; `TEST_TYPE=0` cho Normal, `TEST_TYPE=1` cho Attack.
+- **Luôn `APP_TYPE=0` khi thu thập**; `TEST_TYPE=0` cho Normal, `TEST_TYPE=1` cho Attack.
+- **Trust-based blocking tự động tắt** trong data collection mode để tránh block traffic khi thu thập.
 - Traffic Normal nên đa dạng và đủ thời gian để RFIP/SFE/SSIP có biến thiên, tránh toàn 1.0 cho RFIP.
 - Dataset cân bằng giúp SVM/RandomForest học tốt và decision boundary bớt đơn giản.
 - Kiểm tra `logs/ryu_controller.log` và `data/result.csv` để xác nhận đang ghi nhận dữ liệu thực (sfe/ssip khác 0).
+- **SSIP được tính per-switch** (không còn global), đảm bảo tính chính xác cho mỗi switch.
+- Sau khi train, models được lưu tại `ryu_app/ml_model_*.pkl` và sẽ được tự động load khi controller khởi động (không cần train lại mỗi lần).
 

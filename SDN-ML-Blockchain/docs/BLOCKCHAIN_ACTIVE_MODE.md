@@ -8,12 +8,12 @@ Trước đây, blockchain chỉ **ghi nhận (logging)** các sự kiện. Bây
 
 ## Các Tính Năng Mới
 
-### 1⃣ **Trust-Based Blocking** (Chặn dựa trên Trust Score)
+### 1⃣ **Trust-Based Mitigation Guidance** (Hướng dẫn mitigation dựa trên Trust Score)
 
 **Nguyên lý:**
 - Mỗi switch có `trust_score` (0.0 - 1.0) được lưu trên blockchain
 - Trust score giảm khi có attack, tăng khi traffic bình thường
-- Switch có trust < 0.3 → Tự động bị block
+- Trust score ảnh hưởng đến quyết định mitigation action, không tự động block port
 
 **Luồng hoạt động:**
 ```
@@ -23,23 +23,26 @@ PacketIn → Query trust_score từ blockchain
        /              \
      YES               NO
       ↓                ↓
-  Block port      Process normally
-  immediately
+  Apply aggressive    Process normally
+  mitigation when
+  attack detected
 ```
 
 **Code (sử dụng `switch_id` dạng số, ví dụ `"1"`):**
 ```python
 trust_log = blockchain_client.query_trust_log(str(dpid))
-if trust_log['current_trust'] < 0.3:
-    block_port(datapath, in_port, reason="Low Trust Score")
-    return
+if trust_log['current_trust'] < 0.3 and status == 'blocked':
+    # Chỉ log warning, không block ngay
+    # Sẽ áp dụng mitigation mạnh hơn khi có attack được phát hiện
+    logger.debug(f"Switch {dpid} has low trust, will apply aggressive mitigation")
 ```
 
 **Ví dụ thực tế:**
 ```
 Switch 1 bị tấn công DDoS → Trust giảm từ 1.0 → 0.2
-Lần sau PacketIn → Blockchain trả về trust=0.2
-Controller: " Switch 1 has low trust score (0.20), blocking port 1"
+Lần sau có attack → Blockchain recommend "block_immediately" (thay vì "standard_mitigation")
+Controller: "⚠️ Switch 1 has low trust score (0.20), will apply aggressive mitigation"
+→ Block theo source_ip thay vì flow_specific
 ```
 
 ---
@@ -53,7 +56,7 @@ Controller: " Switch 1 has low trust score (0.20), blocking port 1"
   - Event count
 - Trả về: `block_immediately`, `standard_mitigation`, hoặc `warn_only`
 
-**Logic trong Chaincode:**
+**Logic trong Chaincode (quyết định mức độ mitigation):**
 ```go
 if confidence > 0.95 {
     return "block_immediately"
@@ -70,6 +73,31 @@ if confidence > 0.7 {
 
 return "warn_only"
 ```
+
+**Mapping từ mitigation action → hành động trên controller:**
+
+- `warn_only` (mitigation = 0)
+  - Chỉ log, **không cài flow block**.
+  - Dùng khi: High trust + low/medium confidence
+- `standard_mitigation` (mitigation = 1)
+  - Khi phát hiện IP spoofing: block **theo FLOW** (flow_specific)  
+    `in_port=X, ipv4_src=Y, ipv4_dst=Z, eth_type=0x0800, actions=drop`
+  - Dùng khi: Medium confidence + medium trust
+- `block_immediately` (mitigation = 2)
+  - Khi phát hiện IP spoofing: block **theo IP nguồn** (source_ip)  
+    `in_port=X, ipv4_src=Y, eth_type=0x0800, actions=drop`
+  - Dùng khi: High confidence (>0.95) hoặc coordinated attack hoặc low trust
+- **Lưu ý:** 
+  - Block mode `full_port` đã bị xóa hoàn toàn (chỉ còn `flow_specific` và `source_ip`)
+  - Trust thấp (<0.3) chỉ ảnh hưởng đến quyết định mitigation, không tự động block port
+  - **Port 1 (uplink port) được bảo vệ**: 
+    - Không cho phép block port 1 trên leaf switches (s2, s3, s4) để tránh làm mất routing giữa các switch
+    - Khi phát hiện IP spoofing từ port 1, hệ thống tự động block source IP trên các port host (port 2-5) thay vì block port 1
+    - Đảm bảo routing giữa các switch vẫn hoạt động bình thường
+  - **Giới hạn blocking rules**: 
+    - Tối đa 50 blocking rules per switch để tránh flow table đầy
+    - Hệ thống kiểm tra giới hạn trước và trong quá trình tạo rules
+    - Chỉ log và ghi blockchain khi có ít nhất 1 rule được tạo thành công
 
 **Ví dụ:**
 ```

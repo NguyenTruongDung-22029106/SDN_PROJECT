@@ -42,7 +42,7 @@ def plot_detection_rate_from_dataset():
         print(f"Bỏ qua detection_rate_bar: không tìm thấy {data_path}")
         return
 
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     X = df[['sfe', 'ssip', 'rfip']].values
     y = df['label'].values
     x_train, x_test, y_train, y_test = train_test_split(
@@ -124,7 +124,7 @@ def plot_network_traffic_from_runtime():
         print(f"Bỏ qua network_traffic_normal_vs_attack: không tìm thấy {data_path}")
         return
 
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     # dùng label làm ground truth: 0 = normal, 1 = attack trong các lần collect
     normal = df[df["label"] == 0]
     attack = df[df["label"] == 1]
@@ -171,7 +171,7 @@ def plot_attack_frequency_over_time():
         print(f"Bỏ qua ddos_attack_frequency_over_time: không tìm thấy {data_path}")
         return
 
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path, on_bad_lines='skip')
     if "time" not in df.columns:
         print("Không có cột 'time' trong data/result.csv, bỏ qua ddos_attack_frequency_over_time.")
         return

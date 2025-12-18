@@ -28,7 +28,7 @@ Total: 12 hosts, 4 switches
 Simulates multi-domain SDN with potential attack sources
 '''
 
-TEST_TIME = int(os.getenv('TEST_TIME', '100'))  # seconds the traffic generator should run
+TEST_TIME = int(os.getenv('TEST_TIME', '300'))  # seconds the traffic generator should run
 # Modes: manual | normal | attack
 TEST_TYPE = os.getenv('TEST_TYPE', 'manual')
 # No default TARGET_IP required for manual mode; scripts handle empty target themselves

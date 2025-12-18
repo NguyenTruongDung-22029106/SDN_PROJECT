@@ -3,7 +3,7 @@
 
   Endpoints:
     POST /api/v1/events       -> submit RecordEvent (body: JSON event)
-    GET  /api/v1/trust/:id    -> evaluate QueryTrustLog
+    GET  /api/v1/attacks/recent -> Get recent attacks (timeWindow query param)
 
   Configuration (env vars):
     CONNECTION_PROFILE - path to connection profile JSON/YAML
@@ -344,21 +344,7 @@ app.post('/api/v1/events', async (req, res) => {
   }
 });
 
-app.get('/api/v1/trust/:deviceId', async (req, res) => {
-  try {
-    const deviceId = req.params.deviceId;
-    const c = await initGateway();
-    const payload = await c.evaluateTransaction('QueryTrustLog', deviceId);
-    let out = null;
-    if (payload && payload.length) {
-      try { out = JSON.parse(payload.toString()); } catch (e) { out = payload.toString(); }
-    }
-    return res.json({ success: true, trust_log: out });
-  } catch (err) {
-    console.error('QueryTrustLog failed:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
+// Removed: GET /api/v1/trust/:deviceId endpoint - no longer used
 
 // New endpoint: Get recent attacks across all switches
 app.get('/api/v1/attacks/recent', async (req, res) => {
@@ -377,83 +363,6 @@ app.get('/api/v1/attacks/recent', async (req, res) => {
   }
 });
 
-// New endpoint: Get mitigation action recommendation
-app.post('/api/v1/mitigation/action', async (req, res) => {
-  try {
-    const { switch_id, confidence } = req.body;
-    if (!switch_id || confidence === undefined) {
-      return res.status(400).json({ error: 'switch_id and confidence are required' });
-    }
-    const c = await initGateway();
-    const payload = await c.evaluateTransaction('GetMitigationAction', switch_id, confidence.toString());
-    const action = payload ? payload.toString() : 'warn_only';
-    return res.json({ success: true, switch_id, confidence, action });
-  } catch (err) {
-    console.error('GetMitigationAction failed:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
-
-// New endpoint: Check for coordinated attack
-app.get('/api/v1/attacks/coordinated', async (req, res) => {
-  try {
-    const timeWindow = parseInt(req.query.timeWindow || '300'); // 5 minutes
-    const threshold = parseInt(req.query.threshold || '3'); // 3 switches
-    const c = await initGateway();
-    const payload = await c.evaluateTransaction('CheckCoordinatedAttack', timeWindow.toString(), threshold.toString());
-    let result = { is_coordinated: false, affected_switches: [], attack_count: 0 };
-    if (payload && payload.length) {
-      try {
-        const parsed = JSON.parse(payload.toString());
-        result = {
-          is_coordinated: parsed.is_coordinated || false,
-          affected_switches: parsed.affected_switches || [],
-          attack_count: parsed.attack_count || 0
-        };
-      } catch (e) {
-        console.error('Failed to parse coordinated attack result:', e);
-      }
-    }
-    return res.json({ success: true, ...result });
-  } catch (err) {
-    console.error('CheckCoordinatedAttack failed:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
-
-// New endpoint: Set mitigation policy
-app.post('/api/v1/policy', async (req, res) => {
-  try {
-    const policy = req.body;
-    if (!policy.policy_id) {
-      return res.status(400).json({ error: 'policy_id is required' });
-    }
-    const c = await initGateway();
-    const tx = c.createTransaction('SetMitigationPolicy');
-    await tx.submit(JSON.stringify(policy));
-    return res.json({ success: true, message: 'Policy set successfully', policy_id: policy.policy_id });
-  } catch (err) {
-    console.error('SetMitigationPolicy failed:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
-
-// New endpoint: Get mitigation policy
-app.get('/api/v1/policy/:policyId', async (req, res) => {
-  try {
-    const policyId = req.params.policyId;
-    const c = await initGateway();
-    const payload = await c.evaluateTransaction('GetMitigationPolicy', policyId);
-    let policy = null;
-    if (payload && payload.length) {
-      try { policy = JSON.parse(payload.toString()); } catch (e) { policy = payload.toString(); }
-    }
-    return res.json({ success: true, policy });
-  } catch (err) {
-    console.error('GetMitigationPolicy failed:', err);
-    return res.status(500).json({ error: err.message || String(err) });
-  }
-});
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -461,11 +370,6 @@ app.listen(HTTP_PORT, () => {
   console.info(`Fabric Node Gateway adapter listening on port ${HTTP_PORT}`);
   console.info(`Available endpoints:`);
   console.info(`  POST /api/v1/events                 - Record security event`);
-  console.info(`  GET  /api/v1/trust/:deviceId        - Query trust log`);
   console.info(`  GET  /api/v1/attacks/recent         - Get recent attacks (timeWindow query param)`);
-  console.info(`  POST /api/v1/mitigation/action      - Get mitigation recommendation`);
-  console.info(`  GET  /api/v1/attacks/coordinated    - Check coordinated attack`);
-  console.info(`  POST /api/v1/policy                 - Set mitigation policy`);
-  console.info(`  GET  /api/v1/policy/:policyId       - Get mitigation policy`);
   console.info(`  GET  /health                        - Health check`);
 });

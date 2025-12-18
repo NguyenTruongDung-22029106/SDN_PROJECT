@@ -103,13 +103,12 @@ event1 = {
     "event_type": "ddos_detected",
     "switch_id": "s1",
     "timestamp": int(time.time()),
-    "trust_score": 0.2,
     "action": "port_blocked",
     "details": {"port": 1, "source_ip": "10.0.0.100", "reason": "SYN flood"}
 }
 client.record_event(json.dumps(event1))
 print(f"   ✅ Recorded: {event1['event_type']} on {event1['switch_id']}")
-print(f"   Trust Score: {event1['trust_score']} (LOW - suspicious)\n")
+print(f"   ✅ Event recorded\n")
 
 # Event 2: Port scan detected
 print("📝 Event 2: Port Scan Detected")
@@ -117,13 +116,12 @@ event2 = {
     "event_type": "port_scan_detected",
     "switch_id": "s1",
     "timestamp": int(time.time()),
-    "trust_score": 0.5,
     "action": "rate_limited",
     "details": {"port_range": "1-1024", "source_ip": "10.0.0.101"}
 }
 client.record_event(json.dumps(event2))
 print(f"   ✅ Recorded: {event2['event_type']} on {event2['switch_id']}")
-print(f"   Trust Score: {event2['trust_score']} (MEDIUM - suspicious)\n")
+print(f"   ✅ Event recorded\n")
 
 # Event 3: Normal traffic verified
 print("📝 Event 3: Normal Traffic Verified")
@@ -131,27 +129,25 @@ event3 = {
     "event_type": "traffic_verified",
     "switch_id": "s2",
     "timestamp": int(time.time()),
-    "trust_score": 0.95,
     "action": "allowed",
     "details": {"protocol": "HTTP", "source_ip": "10.0.0.1"}
 }
 client.record_event(json.dumps(event3))
 print(f"   ✅ Recorded: {event3['event_type']} on {event3['switch_id']}")
-print(f"   Trust Score: {event3['trust_score']} (HIGH - trusted)\n")
+print(f"   ✅ Event recorded\n")
 
-# Query trust logs
+# Query recent attacks
 print("=" * 60)
-print("📊 Querying Trust Logs:")
+print("📊 Querying Recent Attacks:")
 print("=" * 60)
 
-for switch_id in ['s1', 's2']:
-    log = client.query_trust_log(switch_id)
-    if log:
-        trust_status = "🔴 UNTRUSTED" if log['current_trust'] < 0.5 else "🟡 SUSPICIOUS" if log['current_trust'] < 0.7 else "🟢 TRUSTED"
-        print(f"\nSwitch {switch_id}:")
-        print(f"  Status: {trust_status}")
-        print(f"  Current Trust: {log['current_trust']}")
-        print(f"  Total Events: {log['event_count']}")
+attacks = client.get_recent_attacks(time_window=300)
+if attacks:
+    print(f"\nFound {len(attacks)} attacks in last 5 minutes:")
+    for attack in attacks[:5]:  # Show first 5
+        print(f"  Switch {attack.get('switch_id')}: confidence={attack.get('confidence', 0):.2f}, time={attack.get('timestamp', 0)}")
+else:
+    print("  No recent attacks")
 
 print("\n" + "=" * 60)
 print("Blockchain logging working! All events immutably recorded.")
@@ -226,7 +222,6 @@ if is_attack:
         "event_type": "ddos_attack_mitigated",
         "switch_id": "s1",
         "timestamp": int(time.time()),
-        "trust_score": 0.15,
         "action": "traffic_blocked",
         "details": {
             "flow_entries": flow_features[0],
@@ -244,11 +239,9 @@ if is_attack:
     
     # Step 6: Verify
     print("Step 6️⃣ : Verify blockchain record")
-    log = blockchain.query_trust_log("s1")
+    attacks = blockchain.get_recent_attacks(time_window=300)
     print(f"   → Query successful")
-    print(f"   → Device: {log['device_id']}")
-    print(f"   → Current Trust: {log['current_trust']}")
-    print(f"   → Total Events: {log['event_count']}\n")
+    print(f"   → Recent attacks: {len(attacks) if attacks else 0}\n")
 
 print("┌─────────────────────────────────────────────────────────┐")
 print("│ ✅ Attack Successfully Detected and Mitigated!          │")

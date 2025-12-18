@@ -79,7 +79,6 @@ class BlockchainClient:
                     'event_type': 'attack_detected',
                     'switch_id': 's1',
                     'timestamp': 1234567890,
-                    'trust_score': 0.5,
                     'action': 'block',
                     'details': {...}
                 }
@@ -116,7 +115,7 @@ class BlockchainClient:
     def _normalize_event(self, event):
         """
         Normalize event dict keys to the chaincode expected snake_case fields.
-        Known output keys: event_id, event_type, switch_id, timestamp, trust_score,
+        Known output keys: event_id, event_type, switch_id, timestamp,
         action, details, recorded_by, recorded_time
         """
         def pick(keys, d, default=None):
@@ -138,12 +137,7 @@ class BlockchainClient:
         except Exception:
             normalized['timestamp'] = int(time.time())
 
-        # trust score could be float or int
-        tscr = pick(['trust_score', 'TrustScore', 'trust'], event, None)
-        try:
-            normalized['trust_score'] = float(tscr) if tscr is not None else 0.0
-        except Exception:
-            normalized['trust_score'] = 0.0
+        # trust_score removed - no longer used
 
         normalized['action'] = pick(['action', 'Action'], event, '')
         normalized['details'] = pick(['details', 'Details'], event, {}) or {}
@@ -180,24 +174,6 @@ class BlockchainClient:
             print(f"Error querying event: {e}")
             return None
 
-    def query_trust_log(self, device_id):
-        """
-        Query trust log for a device
-        
-        Args:
-            device_id: Device identifier (e.g., switch ID)
-            
-        Returns:
-            dict: Trust log data or None
-        """
-        try:
-            if self.use_gateway:
-                return self._query_via_gateway('QueryTrustLog', device_id)
-            else:
-                return self._query_via_cli('QueryTrustLog', device_id)
-        except Exception as e:
-            print(f"Error querying trust log: {e}")
-            return None
 
     def query_events_by_switch(self, switch_id):
         """Query all events for a specific switch"""
@@ -419,7 +395,7 @@ class BlockchainClient:
 
 
 # Utility functions
-def create_event_data(event_type, switch_id, trust_score=1.0, action='', **details):
+def create_event_data(event_type, switch_id, action='', **details):
     """
     Helper function to create event data structure.
 
@@ -429,7 +405,6 @@ def create_event_data(event_type, switch_id, trust_score=1.0, action='', **detai
         'event_type': event_type,
         'switch_id': switch_id,
         'timestamp': int(time.time()),
-        'trust_score': trust_score,
         'action': action,
         'details': details
     }

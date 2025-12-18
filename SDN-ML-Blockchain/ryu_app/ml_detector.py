@@ -60,7 +60,7 @@ class MLDetector:
             except Exception as e:
                 logger.warning(f"Failed to load pre-trained model: {e}. Will train new model.")
                 # Nếu load thất bại, train lại
-                if not os.path.exists(model_path):
+        if not os.path.exists(model_path):
                     raise FileNotFoundError(
                         f"Training data CSV not found at {model_path}. "
                         "Please run: python3 ryu_app/build_dataset.py to create dataset/result.csv (sfe,ssip,rfip,label)."
@@ -71,7 +71,7 @@ class MLDetector:
                         f"Failed to train {model_type} model from {model_path}. "
                         "Check CSV format and contents."
                     )
-        else:
+            else:
             # Chưa có model → cần train mới
             if not os.path.exists(model_path):
                 raise FileNotFoundError(
@@ -79,14 +79,14 @@ class MLDetector:
                     "Please run: python3 ryu_app/build_dataset.py to create dataset/result.csv (sfe,ssip,rfip,label). "
                     f"Or train models first: python3 ryu_app/ml_detector.py --all"
                 )
-            
+
             logger.info(f"No pre-trained model found. Training new {model_type} model from {model_path}")
-            ok = self.train(model_path)
-            if not ok:
-                raise RuntimeError(
-                    f"Failed to train {model_type} model from {model_path}. "
-                    "Check CSV format and contents."
-                )
+        ok = self.train(model_path)
+        if not ok:
+            raise RuntimeError(
+                f"Failed to train {model_type} model from {model_path}. "
+                "Check CSV format and contents."
+            )
 
     def _create_default_model(self):
         """Create untrained model based on model_type"""
@@ -304,18 +304,18 @@ if __name__ == '__main__':
     def process_model(model_type, args):
         print(f"\n=== Processing model: {model_type} ===")
         try:
-            detector = MLDetector(model_type=model_type, model_path=args.data)
-            # If force retrain requested, run training if data exists
-            if args.force:
+        detector = MLDetector(model_type=model_type, model_path=args.data)
+        # If force retrain requested, run training if data exists
+        if args.force:
                 ok = detector.train(args.data)
                 if ok:
                     detector.save_model(f'ml_model_{model_type}.pkl')
-            # Ensure trained model file exists
-            if detector.is_trained:
-                model_file = os.path.join(detector.model_dir, f'ml_model_{model_type}.pkl')
-                if os.path.exists(model_file):
+        # Ensure trained model file exists
+        if detector.is_trained:
+            model_file = os.path.join(detector.model_dir, f'ml_model_{model_type}.pkl')
+            if os.path.exists(model_file):
                     print(f"✓ Model is available: {model_file}")
-                else:
+            else:
                     print(f"⚠ Warning: model marked trained but file not found at {model_file}")
         except (ValueError, RuntimeError, FileNotFoundError) as e:
             print(f"❌ Failed to process {model_type}: {e}")

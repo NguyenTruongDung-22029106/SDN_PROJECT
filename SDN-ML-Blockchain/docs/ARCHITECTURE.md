@@ -136,20 +136,12 @@ controller_blockchain.py
     Dynamic confidence threshold dựa trên model threshold
 
  MitigationEngine
-    Block modes:
-      - flow_specific: Block specific flow (src_ip + dst_ip)
-      - source_ip: Block all flows from src_ip
+    Block mode: port_only (giống repo tham khảo)
+      - Chỉ block port number: block tất cả traffic từ port đó
+      - Flow rule: in_port=X, actions=drop
     Install drop rules (hard_timeout=120s)
     IP spoofing detection (chỉ khi mitigation > 0)
     Trust-based mitigation guidance (không tự động block)
-    Port 1 (uplink) protection: 
-      - Không cho phép block port 1 trên leaf switches
-      - Khi block port 1: tự động block source IP trên port host (2-5) thay thế
-      - Đảm bảo routing giữa switches không bị ảnh hưởng
-    Blocking rules limit: 
-      - Tối đa 50 rules per switch để tránh flow table đầy
-      - Kiểm tra giới hạn trước và trong quá trình tạo rules
-      - Chỉ log/blockchain khi có rule được tạo thành công
 
  BlockchainLogger
      Connect to Fabric
@@ -179,10 +171,9 @@ Confidence Score
     ↓
 Compare với effective_conf_threshold (dynamic, dựa trên model threshold)
     ↓
-Decision: Trigger Mitigation?
-    - warn_only (0): Chỉ log
-    - standard_mitigation (1): Block flow_specific
-    - block_immediately (2): Block source_ip
+Decision: Block Port?
+    - Phát hiện IP spoofing → Block port ngay
+    - Không phân biệt mức độ
 ```
 
 ### Blockchain Smart Contract Structure

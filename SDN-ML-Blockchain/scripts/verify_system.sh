@@ -90,15 +90,15 @@ from blockchain.fabric_client import BlockchainClient
 
 try:
     client = BlockchainClient()
-    event = {"event_type": "test", "switch_id": "s1", "timestamp": 123, "trust_score": 0.9, "action": "test", "details": {}}
+    event = {"event_type": "test", "switch_id": "s1", "timestamp": 123, "action": "test", "details": {}}
     result = client.record_event(event)
-    query = client.query_trust_log("s1")
+    attacks = client.get_recent_attacks(time_window=300)
 
-    if result and query:
-        print(f"  ✅ PASS - Blockchain logging working (trust={query.get('current_trust')})")
+    if result:
+        print(f"  ✅ PASS - Blockchain logging working (recent attacks: {len(attacks) if attacks else 0})")
         sys.exit(0)
     else:
-        print("  ❌ FAIL - Blockchain query failed or returned no data")
+        print("  ❌ FAIL - Blockchain logging failed")
         sys.exit(1)
 except Exception as e:
     print(f"  ❌ FAIL - Blockchain error: {e}")

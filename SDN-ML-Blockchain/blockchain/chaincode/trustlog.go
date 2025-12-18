@@ -286,7 +286,8 @@ func (s *SmartContract) GetRecentAttacks(ctx contractapi.TransactionContextInter
 		}
 
 		// Filter by event type and time
-		if event.EventType == "attack_detected" && event.Timestamp >= startTime {
+		// Include both attack_detected (ML detection) and port_blocked (IP spoofing blocking)
+		if (event.EventType == "attack_detected" || event.EventType == "port_blocked") && event.Timestamp >= startTime {
 			if event.Details == nil {
 				event.Details = make(map[string]interface{})
 			}
@@ -297,150 +298,8 @@ func (s *SmartContract) GetRecentAttacks(ctx contractapi.TransactionContextInter
 	return attacks, nil
 }
 
-// GetMitigationAction determines the appropriate mitigation action based on trust score and history
-func (s *SmartContract) GetMitigationAction(ctx contractapi.TransactionContextInterface, switchID string, confidence float64) (string, error) {
-	trustLog, err := s.QueryTrustLog(ctx, switchID)
-	if err != nil {
-		// No trust log exists, use default behavior
-		if confidence > 0.9 {
-			return "standard_mitigation", nil
-		}
-		return "warn_only", nil
-	}
-
-	// High confidence attack
-	if confidence > 0.95 {
-		return "block_immediately", nil
-	}
-
-	// Medium confidence - check trust history
-	if confidence > 0.7 {
-		if trustLog.CurrentTrust < 0.5 {
-			// Low trust + medium confidence = block
-			return "block_immediately", nil
-		} else if trustLog.CurrentTrust > 0.8 {
-			// High trust + medium confidence = warn only
-			return "warn_only", nil
-		}
-		return "standard_mitigation", nil
-	}
-
-	// Low confidence - only block if very low trust
-	if trustLog.CurrentTrust < 0.3 {
-		return "standard_mitigation", nil
-	}
-
-	return "warn_only", nil
-}
-
-// CoordinatedAttackResult represents the result of coordinated attack check
-type CoordinatedAttackResult struct {
-	IsCoordinated    bool     `json:"is_coordinated"`
-	AffectedSwitches []string `json:"affected_switches"`
-	AttackCount      int      `json:"attack_count"`
-}
-
-// CheckCoordinatedAttack checks if multiple switches are under attack (coordinated DDoS)
-func (s *SmartContract) CheckCoordinatedAttack(ctx contractapi.TransactionContextInterface, timeWindow int64, threshold int) (string, error) {
-	attacks, err := s.GetRecentAttacks(ctx, timeWindow)
-	if err != nil {
-		return "", fmt.Errorf("failed to get recent attacks: %v", err)
-	}
-
-	// Count unique switches under attack
-	switchMap := make(map[string]bool)
-	for _, attack := range attacks {
-		switchMap[attack.SwitchID] = true
-	}
-
-	affectedSwitches := make([]string, 0, len(switchMap))
-	for switchID := range switchMap {
-		affectedSwitches = append(affectedSwitches, switchID)
-	}
-
-	isCoordinated := len(affectedSwitches) >= threshold
-
-	result := CoordinatedAttackResult{
-		IsCoordinated:    isCoordinated,
-		AffectedSwitches: affectedSwitches,
-		AttackCount:      len(attacks),
-	}
-
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal result: %v", err)
-	}
-
-	return string(resultJSON), nil
-}
-
-// MitigationPolicy represents a mitigation policy stored on blockchain
-type MitigationPolicy struct {
-	PolicyID      string  `json:"policy_id"`
-	Name          string  `json:"name"`
-	MinConfidence float64 `json:"min_confidence"`
-	MinTrustScore float64 `json:"min_trust_score"`
-	Action        string  `json:"action"`         // block_immediately, standard_mitigation, warn_only
-	BlockDuration int     `json:"block_duration"` // seconds
-	Description   string  `json:"description"`
-	CreatedBy     string  `json:"created_by"`
-	CreatedTime   int64   `json:"created_time"`
-}
-
-// SetMitigationPolicy creates or updates a mitigation policy
-func (s *SmartContract) SetMitigationPolicy(ctx contractapi.TransactionContextInterface, policyJSON string) error {
-	var policy MitigationPolicy
-	err := json.Unmarshal([]byte(policyJSON), &policy)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal policy: %v", err)
-	}
-
-	if policy.PolicyID == "" {
-		return fmt.Errorf("policy_id is required")
-	}
-
-	// Get client identity
-	clientID, err := ctx.GetClientIdentity().GetID()
-	if err != nil {
-		return fmt.Errorf("failed to get client identity: %v", err)
-	}
-	policy.CreatedBy = clientID
-	policy.CreatedTime = time.Now().Unix()
-
-	policyBytes, err := json.Marshal(policy)
-	if err != nil {
-		return fmt.Errorf("failed to marshal policy: %v", err)
-	}
-
-	policyKey := "POLICY-" + policy.PolicyID
-	err = ctx.GetStub().PutState(policyKey, policyBytes)
-	if err != nil {
-		return fmt.Errorf("failed to put policy to ledger: %v", err)
-	}
-
-	fmt.Printf("Policy set: %s - %s\n", policy.PolicyID, policy.Name)
-	return nil
-}
-
-// GetMitigationPolicy retrieves a mitigation policy
-func (s *SmartContract) GetMitigationPolicy(ctx contractapi.TransactionContextInterface, policyID string) (*MitigationPolicy, error) {
-	policyKey := "POLICY-" + policyID
-	policyBytes, err := ctx.GetStub().GetState(policyKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read policy: %v", err)
-	}
-	if policyBytes == nil {
-		return nil, fmt.Errorf("policy %s does not exist", policyID)
-	}
-
-	var policy MitigationPolicy
-	err = json.Unmarshal(policyBytes, &policy)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal policy: %v", err)
-	}
-
-	return &policy, nil
-}
+// Removed: GetMitigationAction, CheckCoordinatedAttack, SetMitigationPolicy, GetMitigationPolicy
+// These functions are no longer used - blockchain only logs events, doesn't make decisions
 
 func main() {
 	chaincode, err := contractapi.NewChaincode(&SmartContract{})

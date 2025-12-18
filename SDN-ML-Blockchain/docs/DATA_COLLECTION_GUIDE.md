@@ -32,6 +32,16 @@ h1 iperf -c 10.0.0.2 -t 20
 # UDP iperf (h3→h4)
 h3 iperf -u -c 10.0.0.4 -b 5M -t 20
 
+# Trong Mininet CLI
+mininet> h1 bash -c "for i in {2..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h2 bash -c "for i in {1,3..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h3 bash -c "for i in {1,2,4..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h4 bash -c "for i in {1..3,5..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h5 bash -c "for i in {1..4,6..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h6 bash -c "for i in {1..5,7..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h7 bash -c "for i in {1..6,8..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+mininet> h8 bash -c "for i in {1..7,9..12}; do ping -c 10 -i 0.05 10.0.0.$i & done; wait" &
+
 # HTTP tải file nhỏ (nếu có HTTP server nội bộ, chỉnh IP/port phù hợp)
 h5 curl -m 5 http://10.0.0.6:8000/
 ```

@@ -95,7 +95,6 @@ TEST_EVENT='{
     "event_type": "test_connection",
     "switch_id": "s0",
     "timestamp": '$(date +%s)',
-    "trust_score": 1.0,
     "action": "network_initialized",
     "details": {"message": "Blockchain network setup complete"}
 }'

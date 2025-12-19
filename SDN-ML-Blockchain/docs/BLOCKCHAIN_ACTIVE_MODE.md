@@ -42,10 +42,11 @@ Block port → Log vào blockchain
     "sfe": 28.0,
     "ssip": 28.0,
     "rfip": 0.0
-  },
-  "confidence": 0.95
+  }
 }
 ```
+
+**Lưu ý**: ❌ KHÔNG có `confidence` (đã bỏ)
 
 ### 2. Port Blocked
 ```json
@@ -70,10 +71,11 @@ Block port → Log vào blockchain
     "sfe": 5.0,
     "ssip": 2.0,
     "rfip": 0.5
-  },
-  "confidence": 0.3
+  }
 }
 ```
+
+**Lưu ý**: ❌ KHÔNG có `confidence` (đã bỏ)
 
 ### 4. Switch Connected
 ```json
@@ -91,17 +93,21 @@ Block port → Log vào blockchain
 ### Trường hợp: Phát hiện Attack
 
 ```
-1. ML phát hiện attack (confidence > threshold)
+1. ML phát hiện attack (if '1' in result)
 2. Log vào blockchain: "attack_detected"
-3. Phát hiện IP spoofing trong packet_in_handler
-4. Block port ngay (KHÔNG hỏi blockchain)
-5. Log vào blockchain: "port_blocked"
+3. Nếu ENABLE_IP_SPOOFING_DETECTION=1:
+   - Phát hiện IP spoofing trong packet_in_handler
+   - Block port ngay (KHÔNG hỏi blockchain)
+   - Log vào blockchain: "port_blocked"
+4. Nếu ENABLE_IP_SPOOFING_DETECTION=0:
+   - Chỉ ML detection hoạt động
+   - Block dựa trên ML prediction (nếu PREVENTION=1)
 ```
 
 ### Trường hợp: Normal Traffic
 
 ```
-1. ML phát hiện normal traffic (confidence < threshold)
+1. ML phát hiện normal traffic (prediction = ['0'])
 2. Log vào blockchain: "normal_traffic" (mỗi 30 giây)
 3. KHÔNG block gì cả
 ```
@@ -119,7 +125,11 @@ Content-Type: application/json
   "event_type": "attack_detected",
   "switch_id": "1",
   "timestamp": 1234567890,
-  "confidence": 0.95
+  "features": {
+    "sfe": 80.0,
+    "ssip": 40.0,
+    "rfip": 0.5
+  }
 }
 ```
 
@@ -132,8 +142,8 @@ Response:
 {
   "success": true,
   "attacks": [
-    {"switch_id": "1", "timestamp": 1732435200, "confidence": 0.95},
-    {"switch_id": "2", "timestamp": 1732435230, "confidence": 0.88}
+    {"switch_id": "1", "timestamp": 1732435200, "sfe": 80.0, "ssip": 40.0},
+    {"switch_id": "2", "timestamp": 1732435230, "sfe": 75.0, "ssip": 35.0}
   ],
   "count": 2
 }

@@ -17,7 +17,7 @@
 - **Ưu điểm**: Chống overfit tốt, robust với noise
 
 ### 3. **SVM** (Support Vector Machine)
-- **Model**: `sklearn.svm.SVC(probability=True)`
+- **Model**: `sklearn.svm.SVC()`
 - **Tốc độ**:  (Chậm)
 - **Độ chính xác**:  (Cao)
 - **Phù hợp**: Dataset nhỏ, phân tách phi tuyến
@@ -135,11 +135,11 @@ test_cases = [
 print(f'\nTesting {model}:')
 for features, label in test_cases:
     start = time.time()
-    prediction, confidence = detector.classify(features)
+    prediction = detector.classify(features)
     duration = time.time() - start
     
-    result = 'Attack' if prediction == 1 else 'Normal'
-    print(f'  {label:20} -> {result:10} ({confidence:.2%}) [{duration*1000:.2f}ms]')
+    result = 'Attack' if '1' in prediction else 'Normal'
+    print(f'  {label:20} -> {result:10} [{duration*1000:.2f}ms]')
 "
 done
 ```
@@ -192,10 +192,11 @@ self.model = RandomForestClassifier(
 self.model = svm.SVC(
     kernel='rbf',          # 'linear', 'poly', 'rbf', 'sigmoid'
     C=1.0,                 # Regularization parameter
-    gamma='scale',         # Kernel coefficient
-    probability=True
+    gamma='scale'          # Kernel coefficient
 )
 ```
+
+**Lưu ý**: KHÔNG cần `probability=True` vì chỉ dùng `predict()`, không dùng `predict_proba()`
 
 ### Decision Tree:
 ```python
@@ -256,9 +257,13 @@ A: `random_forest` - Cân bằng tốt giữa accuracy (92-97%) và tốc độ
 A: Có! Edit `ml_detector.py`, thêm vào `_create_default_model()` method
 
 **Q: Training data ở đâu?**
-A: `dataset/result.csv` - Committed training dataset. Format used for training: `sfe,ssip,rfip,label`.
+A: `dataset/result.csv` - Training dataset với format: `sfe,ssip,rfip,label`.
 
-Note: Runtime CSVs produced by the running controller are stored under `data/` (for example `data/switch_1_data.csv` and `data/result.csv`) and include an extended schema used for logging/detection: `time,sfe,ssip,rfip,label,reason,confidence,dpid`.
+Note: Hệ thống tự động phân chia file theo mode:
+- **APP_TYPE=0** (Collection): ghi vào `dataset/result.csv` (ground truth)
+- **APP_TYPE=1** (Detection): ghi vào `data/result.csv` (ML predictions)
+
+Các file per-switch vẫn được lưu trong `data/` (ví dụ: `data/switch_1_data.csv`, `data/switch_1_flowcount.csv`) cho mục đích monitoring.
 
 **Q: Làm sao re-train model?**  
 A: 
@@ -269,11 +274,10 @@ A:
 **Q: Model lưu ở đâu?**  
 A: `ryu_app/ml_model_{model_type}.pkl` (dùng joblib). Controller ưu tiên load file .pkl này khi khởi động (không train lại mỗi lần).
 
-**Q: Confidence threshold được tính như thế nào?**
+**Q: Có sử dụng confidence threshold không?**
 A: 
-- Base threshold: `ML_CONF_THRESHOLD` (mặc định 0.8)
-- Dynamic adjustment dựa trên model threshold (từ .pkl):
-  - Nếu model threshold < 0.6 → effective = max(ML_CONF_THRESHOLD, 0.75)
-  - Nếu model threshold > 0.7 → effective = max(ML_CONF_THRESHOLD, model_threshold - 0.1)
-  - Ngược lại → effective = ML_CONF_THRESHOLD
-- Mục đích: Giảm false positives, tăng độ chính xác detection
+- ❌ KHÔNG!
+- Model chỉ trả về prediction: ['0'] hoặc ['1']
+- Logic đơn giản: `if '1' in result: → Attack`
+- KHÔNG có confidence, KHÔNG có threshold, KHÔNG có predict_proba()
+- Mục đích: Đơn giản hóa, giống 100% tác giả gốc

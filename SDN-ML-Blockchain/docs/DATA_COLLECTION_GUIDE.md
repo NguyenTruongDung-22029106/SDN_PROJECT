@@ -67,13 +67,8 @@ h1 ping -f -c 200 10.0.0.2
 4) Dừng Mininet, dừng controller.
 
 ## 4. Sau thu thập
-1) Lọc và dựng dataset (dùng |SFE|, |SSIP|, lọc reason=collect):
-```bash
-# Mặc định: lọc reason=collect, lấy absolute value cho SFE/SSIP
-python3 ryu_app/build_dataset.py
-# Hoặc chỉ định rõ:
-python3 ryu_app/build_dataset.py --src data/result.csv --out dataset/result.csv --reason collect
-```
+1) ~~Lọc và dựng dataset~~ **KHÔNG CẦN** - Controller đã ghi trực tiếp vào `dataset/result.csv` với format đúng!
+
 2) Huấn luyện 4 mô hình và xuất .pkl:
 ```bash
 # Train tất cả models và lưu .pkl files
@@ -87,7 +82,7 @@ python3 ryu_app/ml_detector.py --all
 - **Trust-based blocking tự động tắt** trong data collection mode để tránh block traffic khi thu thập.
 - Traffic Normal nên đa dạng và đủ thời gian để RFIP/SFE/SSIP có biến thiên, tránh toàn 1.0 cho RFIP.
 - Dataset cân bằng giúp SVM/RandomForest học tốt và decision boundary bớt đơn giản.
-- Kiểm tra `logs/ryu_controller.log` và `data/result.csv` để xác nhận đang ghi nhận dữ liệu thực (sfe/ssip khác 0).
+- Kiểm tra `logs/ryu_controller.log` và `dataset/result.csv` (APP_TYPE=0) hoặc `data/result.csv` (APP_TYPE=1) để xác nhận đang ghi nhận dữ liệu thực (sfe/ssip khác 0).
 - **SSIP được tính per-switch** (không còn global), đảm bảo tính chính xác cho mỗi switch.
 - Sau khi train, models được lưu tại `ryu_app/ml_model_*.pkl` và sẽ được tự động load khi controller khởi động (không cần train lại mỗi lần).
 

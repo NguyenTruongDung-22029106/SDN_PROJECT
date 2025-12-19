@@ -1,0 +1,72 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    HƯỚNG DẪN NHANH: IP SPOOFING DETECTION                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+🎯 VẤN ĐỀ:
+   IP Spoofing Detection block traffic TRƯỚC KHI ML có cơ hội phát hiện
+   → Không có label=1 trong data/result.csv
+   → Logs chỉ hiện "IP Spoofing detected" thay vì "Attack Traffic detected"
+
+✅ GIẢI PHÁP:
+   Đã thêm biến ENABLE_IP_SPOOFING_DETECTION để kiểm soát
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 CÁCH CHẠY (3 CHỌN LỰA):
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ 1. CHỈ DÙNG ML (Khuyến nghị cho học tập)                                 │
+└───────────────────────────────────────────────────────────────────────────┘
+
+    ./scripts/start_system.sh
+
+    ✓ IP Spoofing Detection: TẮT (mặc định)
+    ✓ ML Detection: BẬT
+    ✓ ML sẽ phát hiện và block attack
+    ✓ Có label=1 trong data/result.csv
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ 2. DÙNG CẢ 2 CƠ CHẾ (Bảo vệ 2 lớp)                                       │
+└───────────────────────────────────────────────────────────────────────────┘
+
+    ENABLE_IP_SPOOFING_DETECTION=1 ./scripts/start_system.sh
+
+    ✓ IP Spoofing Detection: BẬT
+    ✓ ML Detection: BẬT
+    ✓ IP Spoofing block trước, ML phát hiện attack khác
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ 3. TEST ML (Không block)                                                  │
+└───────────────────────────────────────────────────────────────────────────┘
+
+    PREVENTION=0 ./scripts/start_system.sh
+
+    ✓ IP Spoofing Detection: TẮT
+    ✓ ML Detection: BẬT
+    ✓ ML phát hiện nhưng KHÔNG BLOCK (chỉ cảnh báo)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 KIỂM TRA KẾT QUẢ:
+
+    # Kiểm tra cấu hình và trạng thái
+    ./scripts/check_config.sh
+
+    # Xem logs
+    tail -50 logs/ryu_controller.log | grep "Attack Traffic detected"
+
+    # Xem data
+    tail -20 data/result.csv
+
+    # Mong đợi thấy:
+    # - Logs: "✓ IP Spoofing Detection: DISABLED"
+    # - Logs: "🚨 ATTACK DETECTED!"
+    # - CSV: có dòng với label=1
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📖 ĐỌC THÊM:
+
+    Hướng dẫn chi tiết: docs/IP_SPOOFING_DETECTION.md
+
+═══════════════════════════════════════════════════════════════════════════════

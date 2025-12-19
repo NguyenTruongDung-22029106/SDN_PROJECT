@@ -71,11 +71,11 @@ curl -s http://localhost:3001/api/v1/attacks/recent?timeWindow=300 | jq .
       "event_type": "attack_detected",
       "switch_id": "s1",
       "timestamp": 1732750000,
-      "trust_score": 0.3,
       "action": "port_blocked",
       "details": {
-        "confidence": 0.95,
-        "attack_type": "DDoS"
+        "sfe": 80.0,
+        "ssip": 40.0,
+        "rfip": 0.5
       }
     }
   ],
@@ -248,7 +248,6 @@ curl -X POST http://localhost:3001/api/v1/events \
     "switch_id": "1",
     "event_type": "test_event",
     "timestamp": 1732750000,
-    "trust_score": 0.8,
     "action": "logged",
     "details": {"test": true}
   }'
@@ -287,11 +286,11 @@ Mỗi event trong blockchain có cấu trúc:
   "event_type": "attack_detected",       // Loại event
   "switch_id": "1",                      // ID của switch (dpid dạng số)
   "timestamp": 1732750000,                // Unix timestamp
-  "trust_score": 0.3,                     // Điểm tin cậy (0.0-1.0)
   "action": "port_blocked",               // Hành động đã thực hiện
-  "details": {                            // Chi tiết bổ sung
-    "confidence": 0.95,
-    "attack_type": "DDoS"
+  "details": {                            // Chi tiết bổ sung (features)
+    "sfe": 80.0,
+    "ssip": 40.0,
+    "rfip": 0.5
   },
   "recorded_by": "User1@org1.example.com", // Người ghi
   "recorded_time": 1732750000             // Thời gian ghi
@@ -312,10 +311,7 @@ Trust log tổng hợp thông tin của một switch:
 }
 ```
 
-**Status values:**
-- `trusted`: trust_score >= 0.6
-- `suspicious`: 0.3 <= trust_score < 0.6
-- `blocked`: trust_score < 0.3
+**Note:** Trust score management has been removed. Detection is now handled purely by ML model.
 
 ---
 

@@ -319,8 +319,8 @@ grep -i "blockchain" logs/ryu_controller.log
 
 **Log quan trọng cần chú ý (ví dụ):**
 ```
- "ML Prediction: Normal (confidence: 0.95)"
- "ATTACK DETECTED! SwitchID: 1, Port: 2"
+ "✓ Normal Traffic (Switch 1)"
+ "🚨 ATTACK DETECTED! (Switch 1, SFE=80.0, SSIP=40.0, RFIP=0.50)"
  "Port blocked: 1:2"
  "Event logged to blockchain: attack_detected"
 ```
@@ -616,7 +616,6 @@ curl -X POST http://localhost:3001/api/v1/events \
     "switch_id": "s1",
     "event_type": "attack_detected",
     "timestamp": 1732723456,
-    "trust_score": 0.3,
     "action": "block_port",
     "details": {
       "src_ip": "10.0.0.2",
@@ -643,7 +642,6 @@ curl -X POST http://localhost:3001/api/v1/events \
     "switch_id": "s2",
     "event_type": "attack_detected",
     "timestamp": 1732723500,
-    "trust_score": 0.2,
     "action": "port_blocked",
     "details": {"attacker_ip": "10.0.0.5"}
   }'
@@ -655,7 +653,6 @@ curl -X POST http://localhost:3001/api/v1/events \
     "switch_id": "s1",
     "event_type": "normal_traffic",
     "timestamp": 1732723600,
-    "trust_score": 0.95,
     "action": "allowed",
     "details": {}
   }'
@@ -711,8 +708,7 @@ curl -s http://localhost:3001/api/v1/stats | jq .
 # "total_events": 150,
 # "attack_events": 25,
 # "normal_events": 125,
-# "switches": 4,
-# "avg_trust_score": 0.82
+# "switches": 4
 # }
 ```
 
@@ -741,7 +737,6 @@ curl -s -X POST $BASE_URL/events \
     "switch_id": "s1",
     "event_type": "attack_detected",
     "timestamp": '$(date +%s)',
-    "trust_score": 0.25,
     "action": "blocked",
     "details": {"test": true}
   }' | jq .

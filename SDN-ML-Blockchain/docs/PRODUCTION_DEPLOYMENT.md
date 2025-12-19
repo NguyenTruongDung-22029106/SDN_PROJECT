@@ -132,8 +132,7 @@ CREATE TABLE flow_events (
     sfe FLOAT,
     ssip FLOAT,
     rfip FLOAT,
-    prediction INTEGER,
-    confidence FLOAT
+    prediction INTEGER
 );
 ```
 

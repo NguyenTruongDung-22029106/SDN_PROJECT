@@ -51,7 +51,6 @@ class BlockchainBenchmark:
                 'event_type': 'benchmark_test',
                 'switch_id': f's{i % 10}',
                 'timestamp': int(time.time()),
-                'trust_score': 0.8,
                 'action': f'test_action_{i}'
             }
             
@@ -94,7 +93,6 @@ class BlockchainBenchmark:
                 'event_type': 'query_benchmark',
                 'switch_id': f's{i}',
                 'timestamp': int(time.time()),
-                'trust_score': 0.8,
                 'action': 'test'
             }
             self.client.record_event(event_data)

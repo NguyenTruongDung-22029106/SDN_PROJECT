@@ -22,7 +22,6 @@ curl -s -X POST $BASE_URL/events \
     "switch_id": "s2",
     "event_type": "attack_detected",
     "timestamp": '$(date +%s)',
-    "trust_score": 0.2,
     "action": "blocked",
     "details": {"src_ip": "10.0.0.3", "attack_type": "SYN_FLOOD"}
   }' | jq .
@@ -35,7 +34,6 @@ curl -s -X POST $BASE_URL/events \
     "switch_id": "s2",
     "event_type": "normal_traffic",
     "timestamp": '$(date +%s)',
-    "trust_score": 0.98,
     "action": "allow",
     "details": {"src_ip": "10.0.0.1"}
   }' | jq .

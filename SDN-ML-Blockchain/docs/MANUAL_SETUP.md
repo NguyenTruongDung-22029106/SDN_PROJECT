@@ -195,7 +195,6 @@ curl -X POST http://localhost:3001/api/v1/events \
     "switch_id": "s1",
     "event_type": "test_event",
     "timestamp": 1732750000,
-    "trust_score": 0.8,
     "action": "logged",
     "details": {"test": true}
   }'

@@ -87,7 +87,6 @@ Blockchain Logger: Record Attack Event
            ↓
            → event_type: "attack_detected"
            → switch_id: "s1"
-           → trust_score: 0.2
            → action: "port_blocked"
            → timestamp: 1234567890
 ```
@@ -132,8 +131,8 @@ controller_blockchain.py
     Load pre-trained model (.pkl file) - ưu tiên
     Nếu không có .pkl → Train từ dataset/result.csv
     Classify traffic
-    Return (prediction, confidence)
-    Dynamic confidence threshold dựa trên model threshold
+    Return prediction array (['0'] hoặc ['1'])
+    KHÔNG có confidence, KHÔNG có threshold 
 
  MitigationEngine
     Block mode: port_only (giống repo tham khảo)
@@ -164,16 +163,17 @@ Normalization (if needed)
 ML Model (Decision Tree / SVM / RF / NB)
     ↓
 Classification
-    → 0 (Normal Traffic)
-    → 1 (Attack Traffic)
+    → ['0'] (Normal Traffic)
+    → ['1'] (Attack Traffic)
     ↓
-Confidence Score
-    ↓
-Compare với effective_conf_threshold (dynamic, dựa trên model threshold)
-    ↓
-Decision: Block Port?
-    - Phát hiện IP spoofing → Block port ngay
-    - Không phân biệt mức độ
+Decision Logic (Đơn giản)
+    if '1' in result:
+        → ATTACK DETECTED
+        → Log to blockchain
+        → Block (nếu PREVENTION=1)
+    if '0' in result:
+        → NORMAL TRAFFIC
+        → Log to blockchain (mỗi 30s)
 ```
 
 ### Blockchain Smart Contract Structure
@@ -186,11 +186,10 @@ trustlog.go
        EventType
        SwitchID
        Timestamp
-       TrustScore
        Action
-       Details
+       Details (map[string]interface{})
    
-    TrustLog
+    TrustLog (DEPRECATED - không còn sử dụng)
         DeviceID
         CurrentTrust
         EventCount
@@ -214,7 +213,7 @@ trustlog.go
 ### 1. Controller ↔ ML Detector
 - **Interface**: Python function calls
 - **Data**: [sfe, ssip, rfip] array
-- **Return**: (prediction, confidence) tuple
+- **Return**: prediction array (['0'] hoặc ['1'])
 
 ### 2. Controller ↔ Blockchain
 - **Interface**: 

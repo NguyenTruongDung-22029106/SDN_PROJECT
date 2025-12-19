@@ -47,7 +47,7 @@ tail -f logs/ryu_controller.log | grep -E "(ATTACK|BLOCKING|IP Spoofing)"
 
 ### Kỳ vọng trong log:
 ```
-🚨 ATTACK DETECTED! (Switch 2, SFE=XX, SSIP=XX, RFIP=XX) Confidence: XX%
+🚨 ATTACK DETECTED! (Switch 2, SFE=XX, SSIP=XX, RFIP=XX)
 ⛓️ Attack event logged to blockchain
 🛡️ Prevention Enabled
 ⚠️ IP Spoofing detected from port 2, IP: XXX.XXX.XXX.XXX
@@ -100,8 +100,8 @@ tail -f logs/ryu_controller.log | grep "Normal"
 
 ### Kỳ vọng:
 ```
-✓ Normal / Low-risk Traffic - Confidence: XX%
-⛓️ Normal traffic logged to blockchain (switch 2, confidence=XX%)
+✓ Normal Traffic (Switch 2)
+⛓️ Normal traffic logged to blockchain (switch 2)
 ```
 
 ---
@@ -109,7 +109,7 @@ tail -f logs/ryu_controller.log | grep "Normal"
 ## Lưu Ý
 
 1. **Thời gian block**: Flow rule block có `hardtime=60` (60 giây), sau đó tự động unblock
-2. **ML Confidence**: Cần đợi ML phát hiện attack (khoảng 2-4 giây sau khi có traffic)
+2. **ML Detection**: Cần đợi ML phát hiện attack (khoảng 2-4 giây sau khi có traffic)
 3. **IP Spoofing**: Chỉ phát hiện khi IP không khớp với ARP table đã học
 4. **Blocking Mechanism**: 
    - **Chỉ block port number** (giống repo tham khảo)

@@ -64,7 +64,7 @@ Xây dựng hệ thống phát hiện và giảm thiểu tấn công DDoS trong 
 - **Algorithms hỗ trợ**:
   - **Decision Tree**: Phân loại dựa trên cây quyết định
   - **Random Forest**: Ensemble của nhiều decision trees
-  - **Support Vector Machine (SVM)**: Với StandardScaler pipeline
+  - **Support Vector Machine (SVM)**: Phân loại với kernel RBF
   - **Naive Bayes**: Phân loại xác suất
 - **Features**: SFE, SSIP, RFIP (3 features)
 - **Format**: Model được lưu dưới dạng .pkl (pickle)
@@ -143,16 +143,16 @@ fabric-contract-api-go       # Chaincode API
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 4. ML CLASSIFICATION                                    │
+│ 4. ML CLASSIFICATION (GIỐNG TÁC GIẢ GỐC)               │
 │    Input: [SFE, SSIP, RFIP]                            │
-│    → ML Model predict: (label, confidence)             │
-│    - label: 0 (Normal) hoặc 1 (Attack)                 │
-│    - confidence: 0.0 - 1.0                              │
+│    → ML Model predict: label                            │
+│    - label: ['0'] (Normal) hoặc ['1'] (Attack)         │
+│    - KHÔNG có confidence, KHÔNG có threshold            │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 5. DECISION MAKING                                      │
-│    Nếu label == 1 VÀ confidence >= threshold:          │
+│ 5. DECISION MAKING (ĐƠN GIẢN)                          │
+│    Nếu '1' in result:                                   │
 │    → ATTACK DETECTED                                    │
 │    → Log vào blockchain: "attack_detected"             │
 └─────────────────────────────────────────────────────────┘
@@ -193,7 +193,7 @@ fabric-contract-api-go       # Chaincode API
    ML Model predict: label=0 (Normal)
    
 4. LOGGING (Optional)
-   Nếu confidence < threshold hoặc label=0:
+   Nếu label=0 (Normal):
    → Log vào blockchain: "normal_traffic" (mỗi 30 giây)
    → Không block gì cả
 ```
@@ -208,8 +208,9 @@ fabric-contract-api-go       # Chaincode API
 │      "event_type": "attack_detected" | ...             │
 │      "switch_id": "2",                                 │
 │      "timestamp": 1234567890,                           │
-│      "features": {...},                                 │
-│      "confidence": 0.95                                 │
+│      "features": {                                      │
+│        "sfe": 80.0, "ssip": 40.0, "rfip": 0.5          │
+│      }                                                  │
 │    }                                                    │
 └─────────────────────────────────────────────────────────┘
                         ↓
@@ -288,81 +289,90 @@ RFIP = (Bidirectional Flows × 2) / Total Flow Count
 
 ### 4.2. ML Classification Logic
 
-#### 4.2.1. Model Training
+#### 4.2.1. Model Training (GIỐNG TÁC GIẢ GỐC)
 ```python
 Input: dataset/result.csv (sfe, ssip, rfip, label)
 Process:
-  1. Load CSV data với on_bad_lines='skip' (robust parsing)
-  2. Split train/test (80/20)
+  1. Load CSV data trực tiếp với numpy.loadtxt():
+     - dtype='str': Load as strings
+     - skiprows=1: Bỏ qua header
+  2. Split features và labels:
+     - X = data[:, 0:3]  # sfe, ssip, rfip
+     - y = data[:, 3]    # label
   3. Train model với algorithm được chọn:
      - Decision Tree: tree.DecisionTreeClassifier()
      - Random Forest: RandomForestClassifier()
-     - SVM: Pipeline([StandardScaler(), SVC(probability=True)])
-     - Naive Bayes: GaussianNB()
-  4. Tính optimal threshold (dựa trên F1-score)
-  5. Save model to .pkl file
+     - SVM: svm.SVC()
+     - Naive Bayes: GaussianNB() (cần convert sang numeric)
+  4. Save model to .pkl file: ml_model_{type}.pkl
 ```
 
-#### 4.2.2. Model Prediction
+**Lưu ý**: 
+- ❌ KHÔNG có threshold tuning
+- ❌ KHÔNG có train/test split
+- ❌ KHÔNG có validation
+- ✅ Đơn giản: Load → Train → Save
+
+#### 4.2.2. Model Prediction (GIỐNG TÁC GIẢ GỐC)
 ```python
 Input: [sfe, ssip, rfip]
 Process:
   1. Load pre-trained model (.pkl)
      - Ưu tiên: Load từ ml_model_{type}.pkl
      - Fallback: Train từ dataset/result.csv
-  2. Predict: (label, confidence)
-     - label: 0 (Normal) hoặc 1 (Attack)
-     - confidence: Xác suất của prediction
-  3. Apply dynamic threshold:
-     - effective_threshold = model_threshold + offset
-     - offset phụ thuộc vào model_threshold
-  4. Decision:
-     - Nếu label==1 VÀ confidence >= effective_threshold:
+  2. Predict trực tiếp:
+     prediction = model.predict(fparams)
+     # Trả về: ['0'] (Normal) hoặc ['1'] (Attack)
+  3. Decision:
+     - Nếu '1' in prediction:
        → ATTACK
-     - Ngược lại:
+     - Nếu '0' in prediction:
        → NORMAL
 ```
 
-#### 4.2.3. Dynamic Threshold Calculation
-```python
-if model_threshold < 0.6:
-    # Model threshold thấp → cần confidence cao hơn nhiều
-    effective_threshold = model_threshold + 0.3  # Offset lớn
-elif model_threshold > 0.7:
-    # Model threshold cao → model đã chắc chắn
-    effective_threshold = min(model_threshold + 0.1, 1.0)  # Offset nhỏ
-else:
-    # Model threshold trung bình
-    effective_threshold = model_threshold + 0.2  # Offset trung bình
-
-# Đảm bảo không thấp hơn ML_CONF_THRESHOLD mặc định
-effective_threshold = max(ML_CONF_THRESHOLD, effective_threshold)
-```
+**Lưu ý**:
+- ❌ KHÔNG có confidence
+- ❌ KHÔNG có threshold
+- ❌ KHÔNG có predict_proba()
+- ✅ Chỉ dùng model.predict() - đơn giản nhất
 
 **Ví dụ**:
-- Model threshold = 0.5 → effective = 0.8 (0.5 + 0.3)
-- Model threshold = 0.7 → effective = 0.8 (0.7 + 0.1)
-- Model threshold = 0.9 → effective = 1.0 (min(0.9 + 0.1, 1.0))
+```python
+# Controller code
+result = ml_detector.classify([sfe, ssip, rfip])
+if '1' in result:
+    print("Attack detected!")
+    mitigation = 1
+if '0' in result:
+    print("Normal traffic")
+```
 
 ### 4.3. IP Spoofing Detection Logic
+
+**Note**: IP Spoofing Detection chỉ chạy khi `ENABLE_IP_SPOOFING_DETECTION=1` và `PREVENTION=1`
 
 ```python
 1. Packet-In từ switch
    - Extract: src_ip, src_mac, in_port, dpid
    
-2. Kiểm tra ARP table:
+2. Kiểm tra điều kiện:
+   - Nếu PREVENTION=0 hoặc ENABLE_IP_SPOOFING_DETECTION=0:
+     → Skip IP Spoofing Detection
+   - Ngược lại, tiếp tục kiểm tra
+   
+3. Kiểm tra ARP table:
    - Nếu src_ip không có trong arp_ip_to_port[dpid][in_port]:
      → is_spoofed = True
    - Ngược lại:
      → is_spoofed = False (IP đã được học từ ARP)
    
-3. Bảo vệ IP thật của host:
+4. Bảo vệ IP thật của host:
    - Nếu src_mac trong mac_to_ip:
      - Nếu src_ip trong mac_to_ip[src_mac]:
        → is_spoofed = False (IP thật của host)
        → Không block
    
-4. Quyết định block:
+5. Quyết định block:
    - Nếu is_spoofed VÀ port đã có IP được học:
      → Block port
    - Nếu port chưa có IP được học:
@@ -472,29 +482,29 @@ priority=100, in_port=2, actions=drop
 
 **`__init__()`**:
 - Khởi tạo detector với model type
-- Load pre-trained model nếu có
+- Load pre-trained model nếu có (.pkl file)
 - Nếu không có, train từ dataset/result.csv
-- Tính dynamic threshold
+- KHÔNG có threshold (đơn giản)
 
 **`train()`**:
 - Train model từ CSV data
-- Split train/test (80/20)
-- Tính optimal threshold dựa trên F1-score
+- Load trực tiếp với numpy.loadtxt()
+- KHÔNG có train/test split, KHÔNG có threshold tuning
 - Save model to .pkl file
 
-**`classify()`**:
+**`classify()`** :
 - Predict traffic (normal/attack)
 - Input: [sfe, ssip, rfip]
-- Output: (label, confidence)
-- Sử dụng predict_proba() nếu có
+- Output: prediction array (['0'] hoặc ['1'])
+- Chỉ dùng model.predict() - KHÔNG có predict_proba()
 
 **`load_model()`**:
 - Load pre-trained model từ .pkl file
-- Restore model và threshold
+- Restore model (KHÔNG có threshold)
 
 **`save_model()`**:
 - Save trained model to .pkl file
-- Include threshold information
+- KHÔNG lưu threshold (vì không có)
 
 ### 5.3. Blockchain Components
 
@@ -622,8 +632,8 @@ ryu-manager ryu_app/controller_blockchain.py
 # Normal: bash scripts/normal_traffic.sh
 # Attack: bash scripts/attack_traffic.sh
 
-# Data được lưu vào: data/result.csv
-# Format: time,sfe,ssip,rfip,label,reason,confidence,dpid
+# Data được lưu vào: dataset/result.csv (vì APP_TYPE=0)
+# Format: sfe,ssip,rfip,label (4 cột - ground truth)
 ```
 
 **Workflow**:
@@ -640,7 +650,6 @@ ryu-manager ryu_app/controller_blockchain.py
 # Set environment variables
 export APP_TYPE=1  # Detection mode
 export ML_MODEL_TYPE=random_forest  # hoặc decision_tree, svm, naive_bayes
-export ML_CONF_THRESHOLD=0.8  # Confidence threshold
 
 # Start controller
 ryu-manager ryu_app/controller_blockchain.py
@@ -692,18 +701,47 @@ priority=100, in_port=2, actions=drop
 
 ## 7. TÍNH NĂNG CHÍNH
 
+### 7.0. Hai Cơ Chế Phát Hiện Attack
+
+Hệ thống hỗ trợ **2 cơ chế phát hiện** có thể hoạt động độc lập hoặc kết hợp:
+
+#### 7.0.1. ML Detection (Machine Learning)
+- **Mặc định**: BẬT (luôn hoạt động khi APP_TYPE=1)
+- **Phương pháp**: Phân tích features (SFE, SSIP, RFIP)
+- **Ưu điểm**: Phát hiện các pattern phức tạp, học từ dữ liệu
+- **Khi nào dùng**: Phát hiện DDoS dựa trên hành vi traffic
+
+#### 7.0.2. IP Spoofing Detection
+- **Mặc định**: TẮT (`ENABLE_IP_SPOOFING_DETECTION=0`)
+- **Phương pháp**: Kiểm tra IP với ARP table
+- **Ưu điểm**: Phát hiện nhanh IP giả mạo
+- **Khi nào dùng**: Khi muốn bảo vệ 2 lớp (IP Spoofing + ML)
+
+**Cấu hình**:
+```bash
+# Chỉ dùng ML Detection (khuyến nghị cho học tập/nghiên cứu)
+ENABLE_IP_SPOOFING_DETECTION=0 ./scripts/start_system.sh
+
+# Dùng cả 2 cơ chế (bảo vệ 2 lớp)
+ENABLE_IP_SPOOFING_DETECTION=1 ./scripts/start_system.sh
+```
+
+**Xem thêm**: `docs/IP_SPOOFING_DETECTION.md`
+
 ### 7.1. ML-Based Detection
 - ✅ Hỗ trợ 4 algorithms: Decision Tree, Random Forest, SVM, Naive Bayes
-- ✅ Dynamic confidence threshold (dựa trên model threshold)
+- ✅ Phân loại đơn giản: model.predict() → ['0'] hoặc ['1']
 - ✅ Pre-trained model support (.pkl files)
 - ✅ Auto-training nếu không có model
-- ✅ Robust CSV parsing (on_bad_lines='skip')
+- ✅ Load CSV trực tiếp với numpy.loadtxt()
 
 ### 7.2. IP Spoofing Detection
 - ✅ Phát hiện IP không khớp với ARP table
 - ✅ Bảo vệ IP thật của host (MAC-to-IP mapping)
 - ✅ Block port khi phát hiện spoofing
 - ✅ Chỉ block nếu port đã có IP được học (tránh false positive)
+- ✅ Có thể tắt bằng `ENABLE_IP_SPOOFING_DETECTION=0` (mặc định: tắt)
+- ✅ Cho phép ML Detection hoạt động độc lập
 
 ### 7.3. Blockchain Logging
 - ✅ Ghi log tất cả events: attacks, blocking, normal traffic
@@ -738,9 +776,10 @@ priority=100, in_port=2, actions=drop
 
 ### 8.2. ML Model Output
 ```python
-(label, confidence)
-- label: int (0=Normal, 1=Attack)
-- confidence: float (0.0-1.0, xác suất của prediction)
+prediction array: ['0'] hoặc ['1']
+- '0': Normal traffic
+- '1': Attack traffic
+- KHÔNG có confidence
 ```
 
 ### 8.3. Blockchain Event Structure
@@ -755,10 +794,11 @@ priority=100, in_port=2, actions=drop
     "sfe": 28.0,
     "ssip": 28.0,
     "rfip": 0.0
-  },
-  "confidence": 0.95
+  }
 }
 ```
+
+**Lưu ý**: ❌ KHÔNG có `confidence` field
 
 **Port Blocked Event**:
 ```json
@@ -785,10 +825,11 @@ priority=100, in_port=2, actions=drop
     "sfe": 5.0,
     "ssip": 2.0,
     "rfip": 0.5
-  },
-  "confidence": 0.3
+  }
 }
 ```
+
+**Lưu ý**: ❌ KHÔNG có `confidence` field
 
 ### 8.4. CSV Data Format
 
@@ -800,13 +841,25 @@ sfe,ssip,rfip,label
 ...
 ```
 
-**Runtime Data** (`data/result.csv`):
+**Training Data** (`dataset/result.csv` - từ APP_TYPE=0):
 ```
-time,sfe,ssip,rfip,label,reason,confidence,dpid
-12/18/2025, 13:19:14,10.5,2.3,0.8,0,ml,0.3,2
-12/18/2025, 13:19:16,28.0,15.0,0.1,1,ml,0.95,2
+sfe,ssip,rfip,label
+10.5,2.3,0.8,0
+28.0,15.0,0.1,1
 ...
 ```
+
+**Detection Results** (`data/result.csv` - từ APP_TYPE=1):
+```
+sfe,ssip,rfip,label
+12.3,5.1,0.9,0
+31.2,18.5,0.2,1
+...
+```
+
+Note: Hệ thống tự động phân chia:
+- `dataset/result.csv` ← Ground truth (APP_TYPE=0) để train models
+- `data/result.csv` ← ML predictions (APP_TYPE=1) để phân tích
 
 ---
 
@@ -820,15 +873,15 @@ APP_TYPE=1                    # 0=data collection, 1=detection
 TEST_TYPE=0                   # 0=normal, 1=attack (chỉ khi APP_TYPE=0)
 
 # ML Configuration
-ML_MODEL_TYPE=random_forest   # decision_tree, random_forest, svm, naive_bayes
-ML_CONF_THRESHOLD=0.8         # Base confidence threshold
+ML_MODEL_TYPE=decision_tree   # decision_tree (default), random_forest, svm, naive_bayes
 
 # Blockchain Configuration
 BLOCKCHAIN_ADAPTER_URL=http://localhost:3001  # REST Gateway URL
 BLOCKCHAIN_LOG=true           # Enable blockchain logging
 
 # Prevention
-PREVENTION=1                  # Enable DDoS prevention
+PREVENTION=1                  # Enable DDoS prevention (0=no blocking, 1=block attacks)
+ENABLE_IP_SPOOFING_DETECTION=0  # IP Spoofing Detection (0=disabled, 1=enabled)
 INTERVAL=2                    # Flow stats collection interval (seconds)
 ```
 

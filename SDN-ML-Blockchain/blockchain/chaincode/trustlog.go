@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * SDN Security Event Logger - Chaincode for Hyperledger Fabric
- * Records security events from SDN controller including attacks, mitigations, and trust scores
+ * Records security events from SDN controller including attacks and mitigations
  */
 
 package main
@@ -21,14 +21,13 @@ type SecurityEvent struct {
 	EventType    string                 `json:"event_type"` // attack_detected, port_blocked, switch_connected, etc.
 	SwitchID     string                 `json:"switch_id"`
 	Timestamp    int64                  `json:"timestamp"`
-	TrustScore   float64                `json:"trust_score"` // 0.0 to 1.0
 	Action       string                 `json:"action"`
 	Details      map[string]interface{} `json:"details"`
 	RecordedBy   string                 `json:"recorded_by"` // Controller ID
 	RecordedTime int64                  `json:"recorded_time"`
 }
 
-// TrustLog represents trust information for a device
+// TrustLog represents trust information for a device (DEPRECATED - kept for backward compatibility)
 type TrustLog struct {
 	DeviceID     string  `json:"device_id"`
 	CurrentTrust float64 `json:"current_trust"`
@@ -90,62 +89,15 @@ func (s *SmartContract) RecordEvent(ctx contractapi.TransactionContextInterface,
 		return fmt.Errorf("failed to put event to ledger: %v", err)
 	}
 
-	// Update device trust log
-	// Pass RecordedTime so endorsers use the same timestamp when updating the trust log
-	err = s.updateTrustLog(ctx, event.SwitchID, event.TrustScore, event.EventType, event.RecordedTime)
-	if err != nil {
-		return fmt.Errorf("failed to update trust log: %v", err)
-	}
-
 	fmt.Printf("Event recorded: %s - %s\n", event.EventID, event.EventType)
 	return nil
 }
 
-// updateTrustLog updates or creates trust log for a device
+// updateTrustLog - DEPRECATED: No longer used, trust management removed
+// Kept for backward compatibility but does nothing
 func (s *SmartContract) updateTrustLog(ctx contractapi.TransactionContextInterface, deviceID string, trustScore float64, eventType string, lastUpdate int64) error {
-	trustKey := "TRUST-" + deviceID
-	trustBytes, err := ctx.GetStub().GetState(trustKey)
-
-	var trustLog TrustLog
-
-	if err == nil && trustBytes != nil {
-		// Update existing trust log
-		err = json.Unmarshal(trustBytes, &trustLog)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal trust log: %v", err)
-		}
-
-		// Update trust score (weighted average)
-		trustLog.CurrentTrust = (trustLog.CurrentTrust*float64(trustLog.EventCount) + trustScore) / float64(trustLog.EventCount+1)
-		trustLog.EventCount++
-	} else {
-		// Create new trust log
-		trustLog = TrustLog{
-			DeviceID:     deviceID,
-			CurrentTrust: trustScore,
-			EventCount:   1,
-			Status:       "trusted",
-		}
-	}
-
-	// Use the provided lastUpdate (from the recorded event) so endorsers produce deterministic write sets
-	trustLog.LastUpdate = lastUpdate
-
-	// Update status based on trust score
-	if trustLog.CurrentTrust < 0.3 {
-		trustLog.Status = "blocked"
-	} else if trustLog.CurrentTrust < 0.6 {
-		trustLog.Status = "suspicious"
-	} else {
-		trustLog.Status = "trusted"
-	}
-
-	trustBytes, err = json.Marshal(trustLog)
-	if err != nil {
-		return fmt.Errorf("failed to marshal trust log: %v", err)
-	}
-
-	return ctx.GetStub().PutState(trustKey, trustBytes)
+	// No-op: Trust management has been removed
+	return nil
 }
 
 // QueryEvent retrieves a specific event

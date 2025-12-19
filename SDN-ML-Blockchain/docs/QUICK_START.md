@@ -108,16 +108,40 @@ tail -f /home/obito/SDN_Project/SDN-ML-Blockchain/logs/gateway.log
 tail -f /home/obito/SDN_Project/SDN-ML-Blockchain/logs/ryu_controller.log
 ```
 
-### CSV files: training vs runtime
+### CSV files: Data collection and training
 
-- `dataset/result.csv`: Committed training dataset used to train ML models (columns: `sfe,ssip,rfip,label`). Keep this file under `dataset/` and use it for `MLDetector.train()`.
-- `data/` CSVs: Runtime outputs produced by the controller during an experiment. Examples:
+**IMPORTANT:** Hệ thống tự động phân chia file theo mode để tách biệt ground truth và predictions.
+
+**File paths theo APP_TYPE:**
+
+- **`dataset/result.csv`** ← Chỉ ghi khi **APP_TYPE=0** (Collection mode)
+  - Format: `sfe,ssip,rfip,label` (4 cột)
+  - Chứa ground truth data để train ML models
+  - Label = `TEST_TYPE` (0=normal, 1=attack)
+  - ML Detector đọc từ file này để train
+
+- **`data/result.csv`** ← Chỉ ghi khi **APP_TYPE=1** (Detection mode)
+  - Format: `sfe,ssip,rfip,label` (4 cột)
+  - Chứa kết quả phân loại của ML models
+  - Label = kết quả prediction (0=normal, 1=attack)
+  - Dùng để phân tích hiệu suất detection
+
+- **`data/switch_<id>_*.csv`** (Per-switch monitoring - cả 2 modes):
   - `data/switch_<id>_data.csv` (per-switch time series)
-  - `data/result.csv` (combined runtime rows)
+  - `data/switch_<id>_flowcount.csv` (flow count tracking)
 
-  These runtime CSVs include an extended schema produced by the controller: `time,sfe,ssip,rfip,label,reason,confidence,dpid`.
+**Workflow:**
+```bash
+# 1. Collection: Thu thập training data
+APP_TYPE=0 TEST_TYPE=0 ./scripts/start_system.sh  # Normal → dataset/result.csv
+APP_TYPE=0 TEST_TYPE=1 ./scripts/start_system.sh  # Attack → dataset/result.csv
 
-  Note: `label` in runtime CSVs may be `0` (normal) or `1` (attack) when the controller writes detection results. If you run data-collection for training purposes, follow the project's guidance so labels reflect the intended experiment.
+# 2. Train models từ dataset/result.csv
+python3 ryu_app/ml_detector.py --all
+
+# 3. Detection: Chạy ML detection
+APP_TYPE=1 ./scripts/start_system.sh  # Predictions → data/result.csv
+```
 
 ### Attack scripts and `TARGET_IP`
 
@@ -327,6 +351,30 @@ peer chaincode query -C sdnchannel -n trustlog -c '{"Args":["GetRecentAttacks","
 
 ---
 
+## Cấu hình nâng cao
+
+### IP Spoofing Detection
+
+Hệ thống có 2 cơ chế phát hiện attack:
+1. **ML Detection** (mặc định): Dùng Machine Learning
+2. **IP Spoofing Detection**: Phát hiện IP giả mạo
+
+**Mặc định:** IP Spoofing Detection = TẮT (để ML xử lý)
+
+**Để bật IP Spoofing Detection:**
+```bash
+ENABLE_IP_SPOOFING_DETECTION=1 ./scripts/start_system.sh
+```
+
+**Để tắt blocking (chỉ phát hiện, không block):**
+```bash
+PREVENTION=0 ./scripts/start_system.sh
+```
+
+**Xem thêm:** `docs/IP_SPOOFING_DETECTION.md`
+
+---
+
 ## Tips
 
 1. **Luôn dùng `start_system.sh`** thay vì start thủ công từng component
@@ -334,6 +382,7 @@ peer chaincode query -C sdnchannel -n trustlog -c '{"Args":["GetRecentAttacks","
 3. **Fix lỗi ngay** khi gặp thay vì cố chạy tiếp
 4. **Xem logs** để hiểu nguyên nhân lỗi
 5. **Stop đúng cách** bằng `stop_system.sh` trước khi tắt máy
+6. **Kiểm tra cấu hình** bằng `scripts/check_config.sh`
 
 ---
 

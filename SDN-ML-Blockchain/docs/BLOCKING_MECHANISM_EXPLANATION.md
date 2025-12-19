@@ -28,7 +28,7 @@ https://github.com/vishalsingh45/SDN-DDOS-Detection-and-ML-and-Statistical-metho
 
 ### Khi Phát Hiện Attack:
 
-1. **ML Model phát hiện attack** → Confidence > threshold
+1. **ML Model phát hiện attack** → Prediction = ['1']
 2. **Blockchain logging**:
    - Ghi log attack vào blockchain
    - Không quyết định hành động
@@ -45,7 +45,7 @@ https://github.com/vishalsingh45/SDN-DDOS-Detection-and-ML-and-Statistical-metho
 **Scenario**: h2 (port 2 trên switch s2) tấn công h3
 
 1. h2 gửi traffic attack → Switch s2 nhận trên port 2
-2. ML model phát hiện: Confidence = 100%
+2. ML model phát hiện: Prediction = ['1'] (Attack)
 3. Phát hiện IP spoofing → Block port ngay
 4. Hệ thống tạo flow rule:
    ```

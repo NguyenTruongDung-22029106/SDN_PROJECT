@@ -195,13 +195,26 @@ fi
 echo "  → Starting Ryu Controller..."
 mkdir -p "${PROJECT_ROOT}/logs"
 
-# Check ML_MODEL_TYPE environment variable (default: random_forest)
-ML_MODEL_TYPE=${ML_MODEL_TYPE:-random_forest}
-echo "    Using ML model: ${ML_MODEL_TYPE}"
+# Configuration
+APP_TYPE=${APP_TYPE:-1}
+TEST_TYPE=${TEST_TYPE:-1}
+PREVENTION=${PREVENTION:-1}
+ENABLE_IP_SPOOFING_DETECTION=${ENABLE_IP_SPOOFING_DETECTION:-0}
 
-# Redirect stdout/stderr to /dev/null - logger will handle all logging to file
-# Note: Controller will auto-load .pkl files if available, otherwise train from dataset/result.csv
-nohup env ML_MODEL_TYPE="${ML_MODEL_TYPE}" ryu-manager --observe-links controller_blockchain.py > /dev/null 2>&1 &
+echo "    Configuration:"
+echo "      - APP_TYPE: ${APP_TYPE} (0=collection, 1=detection)"
+echo "      - TEST_TYPE: ${TEST_TYPE} (0=normal, 1=attack)"
+echo "      - PREVENTION: ${PREVENTION} (0=no blocking, 1=block attacks)"
+echo "      - IP Spoofing Detection: ${ENABLE_IP_SPOOFING_DETECTION} (0=disabled, 1=enabled)"
+
+# ML_MODEL_TYPE: Nếu không set, controller sẽ dùng mặc định của nó (decision_tree trong controller_blockchain.py)
+if [ -z "${ML_MODEL_TYPE}" ]; then
+    echo "      - ML Model: default from controller (decision_tree)"
+    nohup env APP_TYPE="${APP_TYPE}" TEST_TYPE="${TEST_TYPE}" PREVENTION="${PREVENTION}" ENABLE_IP_SPOOFING_DETECTION="${ENABLE_IP_SPOOFING_DETECTION}" ryu-manager --observe-links controller_blockchain.py > /dev/null 2>&1 &
+else
+    echo "      - ML Model: ${ML_MODEL_TYPE}"
+    nohup env APP_TYPE="${APP_TYPE}" TEST_TYPE="${TEST_TYPE}" PREVENTION="${PREVENTION}" ENABLE_IP_SPOOFING_DETECTION="${ENABLE_IP_SPOOFING_DETECTION}" ML_MODEL_TYPE="${ML_MODEL_TYPE}" ryu-manager --observe-links controller_blockchain.py > /dev/null 2>&1 &
+fi
 RYU_PID=$!
 
 # Wait for controller to initialize
@@ -235,7 +248,14 @@ echo "    - Test: curl http://localhost:3001/health"
 echo ""
 echo "  • Ryu Controller: ✓ (port 6633)"
 echo "    - PID: ${RYU_PID}"
-echo "    - ML Model: ${ML_MODEL_TYPE:-random_forest} (default, set ML_MODEL_TYPE env to change)"
+if [ -z "${ML_MODEL_TYPE}" ]; then
+    echo "    - ML Model: default from controller (decision_tree)"
+else
+    echo "    - ML Model: ${ML_MODEL_TYPE}"
+fi
+echo "    - APP_TYPE: ${APP_TYPE} (0=collection, 1=detection)"
+echo "    - PREVENTION: ${PREVENTION} (0=no blocking, 1=block attacks)"
+echo "    - IP Spoofing Detection: ${ENABLE_IP_SPOOFING_DETECTION} (0=disabled, 1=enabled)"
 echo ""
 echo "Next Steps:"
 echo "  1. Test Gateway API:"

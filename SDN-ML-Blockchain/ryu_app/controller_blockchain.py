@@ -75,16 +75,20 @@ else:
 # APP_TYPE: 0 = data collection (ghi type = TEST_TYPE), 1 = detection (ML)
 APP_TYPE = int(os.environ.get('APP_TYPE', '1'))
 # TEST_TYPE: 0 = normal, 1 = attack (chỉ dùng khi APP_TYPE=0)
-TEST_TYPE = int(os.environ.get('TEST_TYPE', '0'))
-PREVENTION = 1  # DDoS prevention enabled
+TEST_TYPE = int(os.environ.get('TEST_TYPE', '1'))
+# PREVENTION: 0 = no blocking, 1 = block attacks (default: 1 for detection mode, 0 for collection mode)
+PREVENTION = int(os.environ.get('PREVENTION', '1' if APP_TYPE == 1 else '0'))
 INTERVAL = 2  # Data collection interval in seconds
 BLOCKCHAIN_LOG = True  # Enable blockchain logging
+
+# IP Spoofing Detection Configuration
+# Set to 0 to disable IP Spoofing Detection (allow ML to handle all detection)
+# Set to 1 to enable IP Spoofing Detection (blocks spoofed IPs before ML)
+ENABLE_IP_SPOOFING_DETECTION = int(os.environ.get('ENABLE_IP_SPOOFING_DETECTION', '0'))
 
 # ML Model Configuration
 # Supported: 'decision_tree', 'random_forest', 'svm', 'naive_bayes'
 ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'decision_tree')
-# Confidence threshold: chỉ coi là attack nếu confidence >= ML_CONF_THRESHOLD
-ML_CONF_THRESHOLD = float(os.environ.get('ML_CONF_THRESHOLD', '0.8'))
 
 # Logging setup: always write to logs/ryu_controller.log (alongside stdout).
 # Attach handler to the ROOT logger so self.logger (from Ryu) also propagates.
@@ -182,21 +186,34 @@ def update_portcsv(dpid, row, label):
 
 def update_resultcsv(row, label, reason='ml', confidence=1.0, dpid=None, timestamp=None):
     """
-    Write a standardized result row to `data/result.csv`.
-
-    Schema: time,sfe,ssip,rfip,label,reason,confidence,dpid
+    Write result row to appropriate location based on APP_TYPE:
+    - APP_TYPE=0 (Collection): ghi vào dataset/result.csv (ground truth for training)
+    - APP_TYPE=1 (Detection): ghi vào data/result.csv (ML predictions for analysis)
+    
+    Schema: sfe,ssip,rfip,label (4 cột - format giống tác giả gốc)
     """
-    fname = get_data_path("result.csv")
-    header = ['time', 'sfe', 'ssip', 'rfip', 'label', 'reason', 'confidence', 'dpid']
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Chọn thư mục dựa trên APP_TYPE
+    if APP_TYPE == 0:
+        # Collection mode → dataset/result.csv (training data)
+        target_dir = os.path.join(base_dir, '..', 'dataset')
+        os.makedirs(target_dir, exist_ok=True)
+        fname = os.path.join(target_dir, 'result.csv')
+    else:
+        # Detection mode → data/result.csv (detection results)
+        target_dir = os.path.join(base_dir, '..', 'data')
+        os.makedirs(target_dir, exist_ok=True)
+        fname = os.path.join(target_dir, 'result.csv')
+    
+    # Header 4 cột giống tác giả gốc
+    header = ['sfe', 'ssip', 'rfip', 'label']
 
-    t = timestamp if timestamp is not None else time.strftime("%m/%d/%Y, %H:%M:%S", time.localtime())
-    sfe_val = str(row[0]) if len(row) > 0 else ''
-    ssip_val = str(row[1]) if len(row) > 1 else ''
-    rfip_val = str(row[2]) if len(row) > 2 else ''
+    # Lấy giá trị, default về 0/1.0 nếu thiếu
+    sfe_val = str(row[0]) if len(row) > 0 else '0'
+    ssip_val = str(row[1]) if len(row) > 1 else '0'
+    rfip_val = str(row[2]) if len(row) > 2 else '1.0'
     label_val = int(label)
-    reason_val = str(reason)
-    confidence_val = float(confidence)
-    dpid_val = '' if dpid is None else str(dpid)
 
     write_header = not os.path.exists(fname) or os.path.getsize(fname) == 0
     try:
@@ -204,7 +221,8 @@ def update_resultcsv(row, label, reason='ml', confidence=1.0, dpid=None, timesta
             writer = csv.writer(fh, delimiter=',')
             if write_header:
                 writer.writerow(header)
-            writer.writerow([t, sfe_val, ssip_val, rfip_val, label_val, reason_val, f"{confidence_val:.4f}", dpid_val])
+            # Chỉ ghi 4 cột: sfe, ssip, rfip, label
+            writer.writerow([sfe_val, ssip_val, rfip_val, label_val])
             fh.flush()
             try:
                 os.fsync(fh.fileno())
@@ -242,35 +260,15 @@ class BlockchainSDNController(app_manager.RyuApp):
 
         # Initialize ML detector
         if APP_TYPE == 1:
+            # Initialize ML detector for attack detection (GIỐNG TÁC GIẢ GỐC)
             self.ml_detector = MLDetector(model_type=ML_MODEL_TYPE)
-            self.logger.info(f"✓ ML Detector initialized with {ML_MODEL_TYPE.upper()} algorithm")
-            
-            # Điều chỉnh ML_CONF_THRESHOLD dựa trên model threshold từ ML
-            # Model threshold là threshold tối ưu cho classification (0.5-0.95)
-            # Effective threshold = model threshold + offset (để chắc chắn hơn)
-            # Nhưng không thấp hơn ML_CONF_THRESHOLD mặc định
-            model_threshold = getattr(self.ml_detector, 'threshold', 0.5)
-            
-            # Tính effective threshold dựa trên model threshold:
-            if model_threshold < 0.6:
-                # Model threshold thấp → cần confidence cao hơn nhiều để tránh false positive
-                # Offset lớn: +0.3
-                effective_from_model = model_threshold + 0.3
-            elif model_threshold > 0.7:
-                # Model threshold cao → model đã chắc chắn, chỉ cần cao hơn một chút
-                # Offset nhỏ: +0.1 (nhưng không quá 1.0)
-                effective_from_model = min(model_threshold + 0.1, 1.0)
-            else:
-                # Model threshold trung bình → cao hơn vừa phải
-                # Offset trung bình: +0.2
-                effective_from_model = model_threshold + 0.2
-            
-            # Đảm bảo không thấp hơn ML_CONF_THRESHOLD mặc định
-            self.effective_conf_threshold = max(ML_CONF_THRESHOLD, effective_from_model)
-            
-            self.logger.info(f"✓ ML Confidence Threshold: {self.effective_conf_threshold:.2f} (model threshold: {model_threshold:.2f}, base: {ML_CONF_THRESHOLD:.2f})")
+            self.logger.info(f"✓ ML Detector loaded: {ML_MODEL_TYPE}")
+        
+        # Log IP Spoofing Detection status
+        if ENABLE_IP_SPOOFING_DETECTION:
+            self.logger.info("✓ IP Spoofing Detection: ENABLED")
         else:
-            self.effective_conf_threshold = ML_CONF_THRESHOLD
+            self.logger.info("✓ IP Spoofing Detection: DISABLED (ML will handle all detection)")
 
     def _flow_monitor(self):
         """Monitor flow statistics periodically"""
@@ -406,35 +404,19 @@ class BlockchainSDNController(app_manager.RyuApp):
             confidence = 1.0
 
             if APP_TYPE == 1:
-                # ML Detection
-                raw_result, confidence = self.ml_detector.classify([sfe, ssip, rfip])
+                # ML Detection 
+                result = self.ml_detector.classify([sfe, ssip, rfip])
                 reason = 'ml'
 
-                # Áp dụng confidence threshold:
-                # - Chỉ coi là attack nếu model dự đoán 1 VÀ confidence >= effective_conf_threshold
-                # - Ngược lại gán label=0 (normal) để tránh false alarm quá lớn.
-                if int(raw_result) == 1 and confidence >= self.effective_conf_threshold:
+                # Phân loại đơn giản giống tác giả gốc
+                if '1' in result:
                     label = 1
-                    high_conf_attack = True
-                else:
-                    label = 0
-                    high_conf_attack = False
-                    if int(raw_result) == 1:
-                        # Model báo attack nhưng độ tin cậy thấp → ghi log để theo dõi
-                        self.logger.info(
-                            "🤔 Low-confidence attack prediction ignored (Switch {}, "
-                            "SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f}, confidence={:.2f} < threshold {:.2f})".format(
-                                dpid, sfe, ssip, rfip, confidence, self.effective_conf_threshold
-                            )
-                        )
-                
-                if high_conf_attack:  # Attack detected with high confidence
                     self.logger.warning(
-                        "🚨 ATTACK DETECTED! (Switch {}, SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f}) "
-                        "Confidence: {:.2f}% (threshold {:.2f})".format(
-                            dpid, sfe, ssip, rfip, confidence * 100, self.effective_conf_threshold * 100
+                        "🚨 ATTACK DETECTED! (Switch {}, SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f})".format(
+                            dpid, sfe, ssip, rfip
                         )
                     )
+                    self.mitigation = 1
                     
                     # Log to blockchain
                     if self.blockchain_client:
@@ -447,8 +429,7 @@ class BlockchainSDNController(app_manager.RyuApp):
                                     'sfe': float(sfe),
                                     'ssip': float(ssip),
                                     'rfip': float(rfip)
-                                },
-                                'confidence': float(confidence)
+                                }
                             }
                             self.blockchain_client.record_event(event_data)
                             self.logger.info("⛓️ Attack event logged to blockchain")
@@ -456,39 +437,32 @@ class BlockchainSDNController(app_manager.RyuApp):
                             self.logger.error(f"Blockchain logging error: {e}")
                     
                     if PREVENTION == 1:
-                        self.logger.info("🛡️ Prevention Enabled")
+                        self.logger.info("🛡️ Prevention Enabled - Mitigation Started")
                 
-                else:  # Normal traffic (hoặc attack low-confidence)
-                    self.logger.info(
-                        "✓ Normal / Low-risk Traffic - Confidence: {:.2f}%".format(
-                            confidence * 100
-                        )
-                    )
+                if '0' in result:
+                    label = 0
+                    self.logger.info("✓ Normal Traffic (Switch {})".format(dpid))
                     
-                    # Gửi normal traffic event để logging
-                    # Log khi label = 0 (ML model phân loại là normal) hoặc confidence < threshold
-                    # Tránh spam: chỉ gửi mỗi 30 giây
-                    if self.blockchain_client and (label == 0 or confidence < self.effective_conf_threshold):
+                    # Gửi normal traffic event để logging (tránh spam: mỗi 30 giây)
+                    if self.blockchain_client:
                         current_time = time.time()
                         last_log_time = self.last_normal_traffic_log.get(dpid, 0)
                         
-                        # Chỉ gửi nếu đã qua 30 giây từ lần gửi cuối cùng (tránh spam)
                         if current_time - last_log_time >= 30:
                             try:
                                 event_data = {
                                     'event_type': 'normal_traffic',
                                     'switch_id': str(dpid),
-                                    'timestamp': int(current_time),
+                                    'timestamp': int(time.time()),
                                     'features': {
                                         'sfe': float(sfe),
                                         'ssip': float(ssip),
                                         'rfip': float(rfip)
-                                    },
-                                    'confidence': float(confidence)
+                                    }
                                 }
                                 self.blockchain_client.record_event(event_data)
                                 self.last_normal_traffic_log[dpid] = current_time
-                                self.logger.info(f"⛓️ Normal traffic logged to blockchain (switch {dpid}, confidence={confidence*100:.2f}%)")
+                                self.logger.info(f"⛓️ Normal traffic logged to blockchain (switch {dpid})")
                             except Exception as e:
                                 self.logger.debug(f"Blockchain logging error (normal traffic): {e}")
                     
@@ -658,8 +632,8 @@ class BlockchainSDNController(app_manager.RyuApp):
                 srcip = ip.src
                 dstip = ip.dst
 
-                # Check for spoofing during prevention
-                if PREVENTION:
+                # Check for spoofing during prevention (only if enabled)
+                if PREVENTION and ENABLE_IP_SPOOFING_DETECTION:
                     # Kiểm tra IP có trong ARP table không
                     is_spoofed = not (srcip in self.arp_ip_to_port[dpid][in_port])
                     
@@ -678,7 +652,7 @@ class BlockchainSDNController(app_manager.RyuApp):
                         # → Chắc chắn là IP spoofed
                         known_ips_on_port = self.arp_ip_to_port[dpid].get(in_port, [])
                         if len(known_ips_on_port) > 0:
-                        self.logger.warning(f"⚠️ IP Spoofing detected from port {in_port}, IP: {srcip}")
+                            self.logger.warning(f"⚠️ IP Spoofing detected from port {in_port}, IP: {srcip}")
                             
                             # Block port khi phát hiện IP spoofing
                             self.block_port(
@@ -687,7 +661,7 @@ class BlockchainSDNController(app_manager.RyuApp):
                                 reason="IP Spoofing Attack",
                                 block_mode="port_only",
                             )
-                        return
+                            return
                         else:
                             # Port này chưa có IP nào được học, có thể là IP thật của host chưa được học
                             # Không block để tránh block nhầm IP thật

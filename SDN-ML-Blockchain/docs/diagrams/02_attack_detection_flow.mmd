@@ -1,0 +1,41 @@
+# Attack Detection Flow
+# Luồng phát hiện và xử lý tấn công DDoS
+
+sequenceDiagram
+    participant Attacker
+    participant Switch
+    participant Controller
+    participant Feature
+    participant ML
+    participant Mitigation
+    participant Blockchain
+    
+    Attacker->>Switch: Malicious Traffic
+    Switch->>Controller: Packet-In Event
+    
+    Note over Controller: Flow Monitor (every 2s)
+    Controller->>Switch: Request Flow Stats
+    Switch-->>Controller: Flow Statistics
+    
+    Controller->>Feature: Extract Features
+    Note over Feature: SFE = len(flows) / INTERVAL<br/>SSIP = new_ips / INTERVAL<br/>RFIP = pairs / total_flows
+    Feature-->>Controller: [sfe, ssip, rfip]
+    
+    Controller->>ML: classify([sfe, ssip, rfip])
+    Note over ML: model.predict()<br/>NO confidence<br/>NO threshold
+    ML-->>Controller: ['1'] (Attack)
+    
+    alt Attack Detected (if '1' in result)
+        Controller->>Mitigation: Block Port
+        Note over Mitigation: Install Drop Rule<br/>hard_timeout=60s<br/>in_port=X, actions=drop
+        Mitigation->>Switch: Install Flow Rule
+        Switch-->>Mitigation: Rule Installed
+        
+        Controller->>Blockchain: Log Attack Event
+        Note over Blockchain: event_type: attack_detected<br/>action: port_blocked<br/>features: {sfe, ssip, rfip}
+        Blockchain-->>Controller: Event Recorded
+    else Normal Traffic (if '0' in result)
+        Controller->>Blockchain: Log Normal (every 30s)
+        Note over Blockchain: event_type: normal_traffic_logged
+    end
+

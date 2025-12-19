@@ -1,0 +1,47 @@
+# Data Collection and Training Workflow
+# Quy trình thu thập dữ liệu và huấn luyện ML model
+
+flowchart LR
+    subgraph "Collection Mode APP_TYPE=0"
+        START1[Start System<br/>APP_TYPE=0<br/>TEST_TYPE=0/1]
+        RUN1[Run Topology<br/>normal/attack]
+        COLLECT1[Controller Collects<br/>Features + Label]
+        WRITE1[Write to<br/>dataset/result.csv]
+    end
+    
+    subgraph "Training Phase"
+        TRAIN[Train ML Models<br/>python3 ml_detector.py]
+        LOAD[Load dataset/result.csv]
+        SPLIT[NO train/test split<br/>Use all data]
+        FIT[model.fit X, y]
+        SAVE[Save model.pkl<br/>decision_tree.pkl<br/>random_forest.pkl<br/>svm.pkl<br/>naive_bayes.pkl]
+    end
+    
+    subgraph "Detection Mode APP_TYPE=1"
+        START2[Start System<br/>APP_TYPE=1<br/>PREVENTION=1]
+        RUN2[Run Topology<br/>attack traffic]
+        DETECT[ML Detects<br/>model.predict]
+        BLOCK[Block if '1' in result]
+        WRITE2[Write to<br/>data/result.csv]
+    end
+    
+    START1 --> RUN1
+    RUN1 --> COLLECT1
+    COLLECT1 --> WRITE1
+    
+    WRITE1 -.Manual.-> TRAIN
+    TRAIN --> LOAD
+    LOAD --> SPLIT
+    SPLIT --> FIT
+    FIT --> SAVE
+    
+    SAVE -.Model Ready.-> START2
+    START2 --> RUN2
+    RUN2 --> DETECT
+    DETECT --> BLOCK
+    BLOCK --> WRITE2
+    
+    style WRITE1 fill:#99ccff
+    style SAVE fill:#ff9999
+    style BLOCK fill:#ffcc99
+

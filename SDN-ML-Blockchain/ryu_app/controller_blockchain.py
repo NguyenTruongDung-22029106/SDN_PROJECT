@@ -100,7 +100,7 @@ def _ensure_file_logger():
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
-
+    
     for h in root_logger.handlers:
         if isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", "") == log_file:
             return
@@ -450,18 +450,18 @@ class BlockchainSDNController(app_manager.RyuApp):
                         
                         if current_time - last_log_time >= 30:
                             try:
-                                event_data = {
-                                    'event_type': 'normal_traffic',
-                                    'switch_id': str(dpid),
+                                        event_data = {
+                                            'event_type': 'normal_traffic',
+                                            'switch_id': str(dpid),
                                     'timestamp': int(time.time()),
-                                    'features': {
-                                        'sfe': float(sfe),
-                                        'ssip': float(ssip),
-                                        'rfip': float(rfip)
+                                        'features': {
+                                            'sfe': float(sfe),
+                                            'ssip': float(ssip),
+                                            'rfip': float(rfip)
                                     }
-                                }
-                                self.blockchain_client.record_event(event_data)
-                                self.last_normal_traffic_log[dpid] = current_time
+                                    }
+                                    self.blockchain_client.record_event(event_data)
+                                    self.last_normal_traffic_log[dpid] = current_time
                                 self.logger.info(f"⛓️ Normal traffic logged to blockchain (switch {dpid})")
                             except Exception as e:
                                 self.logger.debug(f"Blockchain logging error (normal traffic): {e}")

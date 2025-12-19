@@ -1,0 +1,63 @@
+# Blockchain Layer Architecture
+# Kiến trúc lớp Blockchain - Hyperledger Fabric
+
+graph TB
+    subgraph "Controller Layer"
+        CTRL[Ryu Controller]
+        FABRIC_CLIENT[Fabric Client Python]
+    end
+    
+    subgraph "Gateway Layer"
+        REST_API[REST Gateway<br/>Node.js Express<br/>Port 3001]
+    end
+    
+    subgraph "Fabric Network"
+        subgraph "Chaincode"
+            RECORD[RecordEvent]
+            QUERY[QueryEvent]
+            QUERY_SWITCH[QueryEventsBySwitch]
+            QUERY_TYPE[QueryEventsByType]
+            QUERY_TIME[QueryEventsByTimeRange]
+        end
+        
+        subgraph "Peers"
+            PEER0[Peer0 Org1]
+            PEER1[Peer1 Org1]
+        end
+        
+        ORDERER[Orderer]
+        
+        subgraph "Storage"
+            LEDGER[(Immutable Ledger)]
+            STATE[(State Database)]
+        end
+    end
+    
+    CTRL --> FABRIC_CLIENT
+    FABRIC_CLIENT -->|Option 1: Direct CLI| RECORD
+    FABRIC_CLIENT -->|Option 2: REST API| REST_API
+    
+    REST_API --> RECORD
+    REST_API --> QUERY
+    REST_API --> QUERY_SWITCH
+    REST_API --> QUERY_TYPE
+    REST_API --> QUERY_TIME
+    
+    RECORD --> PEER0
+    RECORD --> PEER1
+    QUERY --> PEER0
+    QUERY_SWITCH --> PEER0
+    QUERY_TYPE --> PEER0
+    QUERY_TIME --> PEER0
+    
+    PEER0 --> ORDERER
+    PEER1 --> ORDERER
+    
+    ORDERER --> LEDGER
+    PEER0 --> STATE
+    PEER1 --> STATE
+    
+    style RECORD fill:#ff9999
+    style LEDGER fill:#99ff99
+    style REST_API fill:#9999ff
+

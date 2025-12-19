@@ -150,77 +150,77 @@ fi
 echo "  → Package ID: $PACKAGE_ID"
 echo ""
 
-  # Approve for Org2
+# Approve for Org2
   echo "  → Approving for Org2..."
-  peer lifecycle chaincode approveformyorg \
-    -o localhost:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID sdnchannel \
-    --name trustlog \
+peer lifecycle chaincode approveformyorg \
+  -o localhost:7050 \
+  --ordererTLSHostnameOverride orderer.example.com \
+  --channelID sdnchannel \
+  --name trustlog \
     --version ${NEW_SEQ}.0 \
-    --package-id $PACKAGE_ID \
+  --package-id $PACKAGE_ID \
     --sequence $NEW_SEQ \
-    --tls \
+  --tls \
     --cafile ${PWD}/organizations/ordererOrganizations/example.com/msp/tlscacerts/tlsca.example.com-cert.pem
 
-  if [ $? -ne 0 ]; then
+if [ $? -ne 0 ]; then
       echo -e "${RED}✗ Failed to approve for Org2${NC}"
-      exit 1
-  fi
+    exit 1
+fi
 
-  # Approve for Org1
+# Approve for Org1
   echo "  → Approving for Org1..."
-  export CORE_PEER_LOCALMSPID="Org1MSP"
-  export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
-  export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
-  export CORE_PEER_ADDRESS=localhost:7051
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
 
-  peer lifecycle chaincode approveformyorg \
-    -o localhost:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID sdnchannel \
-    --name trustlog \
+peer lifecycle chaincode approveformyorg \
+  -o localhost:7050 \
+  --ordererTLSHostnameOverride orderer.example.com \
+  --channelID sdnchannel \
+  --name trustlog \
     --version ${NEW_SEQ}.0 \
-    --package-id $PACKAGE_ID \
+  --package-id $PACKAGE_ID \
     --sequence $NEW_SEQ \
-    --tls \
+  --tls \
     --cafile ${PWD}/organizations/ordererOrganizations/example.com/msp/tlscacerts/tlsca.example.com-cert.pem
 
-  if [ $? -ne 0 ]; then
+if [ $? -ne 0 ]; then
       echo -e "${RED}✗ Failed to approve for Org1${NC}"
-      exit 1
-  fi
+    exit 1
+fi
 
-  # Check commit readiness
+# Check commit readiness
   echo "  → Checking commit readiness..."
-  peer lifecycle chaincode checkcommitreadiness \
-    --channelID sdnchannel \
-    --name trustlog \
+peer lifecycle chaincode checkcommitreadiness \
+  --channelID sdnchannel \
+  --name trustlog \
     --version ${NEW_SEQ}.0 \
     --sequence $NEW_SEQ \
-    --tls \
+  --tls \
     --cafile ${PWD}/organizations/ordererOrganizations/example.com/msp/tlscacerts/tlsca.example.com-cert.pem \
-    --output json
+  --output json
 
-  echo ""
+echo ""
 
-  # Commit chaincode
+# Commit chaincode
   echo "  → Committing chaincode..."
-  peer lifecycle chaincode commit \
-    -o localhost:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID sdnchannel \
-    --name trustlog \
+peer lifecycle chaincode commit \
+  -o localhost:7050 \
+  --ordererTLSHostnameOverride orderer.example.com \
+  --channelID sdnchannel \
+  --name trustlog \
     --version ${NEW_SEQ}.0 \
     --sequence $NEW_SEQ \
-    --tls \
+  --tls \
     --cafile ${PWD}/organizations/ordererOrganizations/example.com/msp/tlscacerts/tlsca.example.com-cert.pem \
-    --peerAddresses localhost:7051 \
-    --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-    --peerAddresses localhost:9051 \
-    --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+  --peerAddresses localhost:7051 \
+  --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
+  --peerAddresses localhost:9051 \
+  --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
 
-  if [ $? -ne 0 ]; then
+if [ $? -ne 0 ]; then
       echo -e "${RED}✗ Failed to commit chaincode${NC}"
       exit 1
   fi

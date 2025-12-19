@@ -1,0 +1,47 @@
+# ML Detection Pipeline
+# Pipeline phát hiện tấn công bằng Machine Learning
+
+flowchart TD
+    START([Flow Statistics]) --> EXTRACT[Extract Features]
+    
+    EXTRACT --> SFE[SFE = len flows / INTERVAL]
+    EXTRACT --> SSIP[SSIP = new_ips / INTERVAL]
+    EXTRACT --> RFIP[RFIP = pairs / total_flows]
+    
+    SFE --> COMBINE[Combine Features]
+    SSIP --> COMBINE
+    RFIP --> COMBINE
+    
+    COMBINE --> ARRAY["[sfe, ssip, rfip]"]
+    
+    ARRAY --> LOAD{Model Loaded?}
+    
+    LOAD -->|Yes| PREDICT[model.predict]
+    LOAD -->|No| TRAIN[Train from dataset/result.csv]
+    TRAIN --> PREDICT
+    
+    PREDICT --> RESULT{Result?}
+    
+    RESULT -->|'1' in result| ATTACK[🚨 ATTACK DETECTED]
+    RESULT -->|'0' in result| NORMAL[✓ Normal Traffic]
+    
+    ATTACK --> LOG1[Log to Blockchain<br/>event_type: attack_detected]
+    ATTACK --> BLOCK{PREVENTION=1?}
+    BLOCK -->|Yes| MITIGATION[Block Port<br/>hard_timeout=60s]
+    BLOCK -->|No| NOMITIGATE[No Action]
+    
+    NORMAL --> LOG2[Log to Blockchain<br/>every 30s]
+    
+    LOG1 --> WRITE1[Write to data/result.csv<br/>if APP_TYPE=1]
+    LOG2 --> WRITE2[Write to dataset/result.csv<br/>if APP_TYPE=0]
+    
+    MITIGATION --> END([End])
+    NOMITIGATE --> END
+    WRITE1 --> END
+    WRITE2 --> END
+    
+    style ATTACK fill:#ff6666
+    style NORMAL fill:#66ff66
+    style PREDICT fill:#6699ff
+    style MITIGATION fill:#ff9966
+

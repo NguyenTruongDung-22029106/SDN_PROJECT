@@ -1,0 +1,71 @@
+# System Operation Modes
+# Các chế độ hoạt động của hệ thống
+
+stateDiagram-v2
+    [*] --> CheckMode: Start System
+    
+    CheckMode --> CollectionMode: APP_TYPE=0
+    CheckMode --> DetectionMode: APP_TYPE=1
+    
+    state CollectionMode {
+        [*] --> CollectNormal: TEST_TYPE=0
+        [*] --> CollectAttack: TEST_TYPE=1
+        
+        CollectNormal --> ExtractFeatures: Monitor Traffic
+        CollectAttack --> ExtractFeatures: Monitor Traffic
+        
+        ExtractFeatures --> WriteDataset: [sfe, ssip, rfip, label]
+        WriteDataset --> dataset/result.csv
+        
+        dataset/result.csv --> [*]: Continue Collection
+    }
+    
+    state DetectionMode {
+        [*] --> LoadModel: Check for .pkl file
+        
+        LoadModel --> UseModel: Model exists
+        LoadModel --> TrainModel: No model
+        
+        TrainModel --> UseModel: Training complete
+        
+        UseModel --> MonitorTraffic: Ready
+        MonitorTraffic --> ExtractFeaturesRT: Every 2s
+        ExtractFeaturesRT --> Classify: [sfe, ssip, rfip]
+        
+        Classify --> Normal: ['0']
+        Classify --> Attack: ['1']
+        
+        Normal --> LogNormal: Every 30s
+        Attack --> CheckPrevention: Immediate
+        
+        CheckPrevention --> Block: PREVENTION=1
+        CheckPrevention --> LogOnly: PREVENTION=0
+        
+        Block --> LogAttack
+        LogOnly --> LogAttack
+        
+        LogNormal --> WriteData
+        LogAttack --> WriteData
+        
+        WriteData --> data/result.csv
+        data/result.csv --> MonitorTraffic: Continue
+    }
+    
+    CollectionMode --> TrainManual: Manual Training
+    TrainManual --> DetectionMode: Models Ready
+    
+    DetectionMode --> [*]: Stop System
+    CollectionMode --> [*]: Stop System
+    
+    note right of CollectionMode
+        Purpose: Collect labeled data
+        Output: dataset/result.csv
+        Label: TEST_TYPE (0 or 1)
+    end note
+    
+    note right of DetectionMode
+        Purpose: Real-time detection
+        Output: data/result.csv
+        Label: ML prediction (0 or 1)
+    end note
+

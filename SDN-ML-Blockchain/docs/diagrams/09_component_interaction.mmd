@@ -1,0 +1,48 @@
+# Component Interaction Diagram
+# Sơ đồ tương tác giữa các thành phần
+
+sequenceDiagram
+    participant Host
+    participant Switch
+    participant Controller
+    participant FlowMonitor
+    participant FeatureExtractor
+    participant MLDetector
+    participant Mitigation
+    participant Blockchain
+    participant Gateway
+    
+    Host->>Switch: Send Packet
+    Switch->>Controller: Packet-In (no matching flow)
+    Controller->>Switch: Install Default Flow
+    
+    loop Every 2 seconds
+        FlowMonitor->>Switch: Request Flow Stats
+        Switch-->>FlowMonitor: Flow Statistics
+        FlowMonitor->>FeatureExtractor: Process Stats
+        FeatureExtractor-->>FlowMonitor: [sfe, ssip, rfip]
+        
+        FlowMonitor->>MLDetector: classify([sfe, ssip, rfip])
+        
+        alt Model exists
+            MLDetector-->>FlowMonitor: ['0'] or ['1']
+        else No model
+            MLDetector->>MLDetector: Train from dataset
+            MLDetector-->>FlowMonitor: ['0'] or ['1']
+        end
+        
+        alt Attack Detected ('1' in result)
+            FlowMonitor->>Mitigation: Block Attack
+            Mitigation->>Switch: Install Drop Rule
+            Switch-->>Mitigation: Rule Installed
+            
+            Mitigation->>Blockchain: Log Attack
+            Blockchain->>Gateway: POST /api/v1/events
+            Gateway-->>Blockchain: Event Recorded
+        else Normal Traffic ('0' in result)
+            FlowMonitor->>Blockchain: Log Normal (every 30s)
+            Blockchain->>Gateway: POST /api/v1/events
+            Gateway-->>Blockchain: Event Recorded
+        end
+    end
+

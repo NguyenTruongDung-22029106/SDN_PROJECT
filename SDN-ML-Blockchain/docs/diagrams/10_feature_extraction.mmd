@@ -1,0 +1,50 @@
+# Feature Extraction Process
+# Quy trình trích xuất đặc trưng (Features)
+
+flowchart TD
+    START([Flow Statistics from Switch]) --> PARSE[Parse Flow Stats]
+    
+    PARSE --> COUNT_FLOWS[Count Total Flows]
+    PARSE --> EXTRACT_IPS[Extract Source IPs]
+    PARSE --> EXTRACT_PAIRS[Extract Flow Pairs]
+    
+    subgraph "SFE Calculation"
+        COUNT_FLOWS --> LOOP1[Loop through flows]
+        LOOP1 --> INCREMENT1[Increment counter]
+        INCREMENT1 --> SFE_CALC[SFE = count / INTERVAL]
+    end
+    
+    subgraph "SSIP Calculation"
+        EXTRACT_IPS --> COMPARE[Compare with old_ssip_len]
+        COMPARE --> NEW_IPS[Count new IPs]
+        NEW_IPS --> SSIP_CALC[SSIP = new_ips / INTERVAL]
+        SSIP_CALC --> UPDATE_OLD[Update old_ssip_len]
+    end
+    
+    subgraph "RFIP Calculation"
+        EXTRACT_PAIRS --> COUNT_PAIRS[Count unique pairs]
+        COUNT_PAIRS --> TOTAL_FLOWS[Get total flows]
+        TOTAL_FLOWS --> RFIP_CALC[RFIP = pairs / total_flows]
+        RFIP_CALC --> HANDLE_ZERO{total_flows == 0?}
+        HANDLE_ZERO -->|Yes| SET_ZERO[RFIP = 0]
+        HANDLE_ZERO -->|No| KEEP_RFIP[Keep calculated RFIP]
+    end
+    
+    SFE_CALC --> COMBINE[Combine Features]
+    UPDATE_OLD --> COMBINE
+    SET_ZERO --> COMBINE
+    KEEP_RFIP --> COMBINE
+    
+    COMBINE --> ARRAY["[sfe, ssip, rfip]"]
+    ARRAY --> WRITE_CSV{APP_TYPE?}
+    
+    WRITE_CSV -->|0 - Collection| WRITE_DATASET[Write to dataset/result.csv<br/>with TEST_TYPE as label]
+    WRITE_CSV -->|1 - Detection| WRITE_DATA[Write to data/result.csv<br/>with ML prediction as label]
+    
+    ARRAY --> ML[Send to ML Detector]
+    
+    style SFE_CALC fill:#99ccff
+    style SSIP_CALC fill:#99ff99
+    style RFIP_CALC fill:#ffcc99
+    style ARRAY fill:#ff9999
+

@@ -1,0 +1,62 @@
+# SecurityEvent Data Structure
+# Cấu trúc dữ liệu SecurityEvent trong Blockchain
+
+classDiagram
+    class SecurityEvent {
+        +string EventID
+        +string EventType
+        +string SwitchID
+        +int64 Timestamp
+        +string Action
+        +map Details
+        +string RecordedBy
+        +int64 RecordedTime
+        +RecordEvent()
+        +QueryEvent()
+        +QueryEventsBySwitch()
+        +QueryEventsByType()
+        +QueryEventsByTimeRange()
+    }
+    
+    class Details {
+        +string host_id
+        +string src_ip
+        +int src_port
+        +string dst_ip
+        +int dst_port
+        +string protocol
+        +string reason
+        +float sfe
+        +float ssip
+        +float rfip
+        +string ml_model
+        +string prediction
+    }
+    
+    class EventTypes {
+        <<enumeration>>
+        attack_detected
+        port_blocked
+        switch_connected
+        switch_disconnected
+        normal_traffic_logged
+        mitigation_action
+    }
+    
+    class Actions {
+        <<enumeration>>
+        port_blocked
+        flow_dropped
+        traffic_allowed
+        alert_generated
+        none
+    }
+    
+    SecurityEvent --> Details : contains
+    SecurityEvent --> EventTypes : uses
+    SecurityEvent --> Actions : uses
+    
+    note for SecurityEvent "NO TrustScore field\n(removed in latest version)\n\nPassive logging only\nNO decision making"
+    
+    note for Details "Features (sfe, ssip, rfip)\nonly in attack_detected events\n\nml_model and prediction\nonly when ML detection used"
+

@@ -1,5 +1,5 @@
 """
-Machine Learning Detector Module 
+Machine Learning Detector Module
 Supports multiple ML algorithms for DDoS detection
 """
 from __future__ import division
@@ -131,7 +131,7 @@ class MLDetector:
                 X = X.astype(float)
                 y = y.astype(int)
             
-            self.model.fit(X, y)
+                self.model.fit(X, y)
 
             self.is_trained = True
             logger.info(f"✓ Model trained successfully with {len(X)} samples")
@@ -211,7 +211,7 @@ class MLDetector:
 if __name__ == "__main__":
     """Train and test ML models"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Train ML models for DDoS detection')
     parser.add_argument('--model', type=str, default='decision_tree', 
                         choices=['decision_tree', 'random_forest', 'svm', 'naive_bayes'],
@@ -252,10 +252,10 @@ if __name__ == "__main__":
 
     if args.all:
         print("Training all supported models...")
-        success_count = 0
+    success_count = 0
         for model in SUPPORTED_MODELS:
             if process_model(model, args):
-                success_count += 1
+            success_count += 1
         print(f"\n✓ Successfully trained {success_count}/{len(SUPPORTED_MODELS)} models")
-    else:
+        else:
         process_model(args.model, args)

@@ -1,0 +1,40 @@
+# IP Spoofing Detection vs ML Detection
+# So sánh cơ chế phát hiện IP Spoofing và ML Detection
+
+flowchart TD
+    START([Packet-In Event]) --> CHECK_SPOOF{ENABLE_IP_SPOOFING_DETECTION=1?}
+    
+    CHECK_SPOOF -->|Yes| SPOOF_CHECK[Check ARP Table]
+    CHECK_SPOOF -->|No| FLOW_MON[Wait for Flow Monitor]
+    
+    SPOOF_CHECK --> IS_SPOOFED{IP in ARP table?}
+    
+    IS_SPOOFED -->|No - Spoofed| VERIFY[Verify MAC-IP mapping]
+    IS_SPOOFED -->|Yes - Legitimate| FLOW_MON
+    
+    VERIFY --> KNOWN{Known host IP?}
+    KNOWN -->|Yes| FLOW_MON
+    KNOWN -->|No| BLOCK_SPOOF[🚫 Block Port<br/>Reason: IP Spoofing]
+    
+    BLOCK_SPOOF --> LOG_SPOOF[Log to Blockchain<br/>event_type: port_blocked]
+    LOG_SPOOF --> END1([End - Blocked by IP Spoofing Detection])
+    
+    FLOW_MON --> EXTRACT[Extract Features<br/>SFE, SSIP, RFIP]
+    EXTRACT --> ML[ML Classification<br/>model.predict]
+    
+    ML --> RESULT{Result?}
+    
+    RESULT -->|'1' - Attack| BLOCK_ML[🚫 Block Port<br/>Reason: DDoS Attack]
+    RESULT -->|'0' - Normal| NORMAL[✓ Normal Traffic]
+    
+    BLOCK_ML --> LOG_ML[Log to Blockchain<br/>event_type: attack_detected]
+    LOG_ML --> END2([End - Blocked by ML])
+    
+    NORMAL --> LOG_NORMAL[Log to Blockchain<br/>every 30s]
+    LOG_NORMAL --> END3([End - Allowed])
+    
+    style BLOCK_SPOOF fill:#ff6666
+    style BLOCK_ML fill:#ff9966
+    style NORMAL fill:#66ff66
+    style CHECK_SPOOF fill:#ffcc99
+

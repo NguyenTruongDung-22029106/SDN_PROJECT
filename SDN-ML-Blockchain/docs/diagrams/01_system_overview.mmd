@@ -1,0 +1,72 @@
+# System Overview Architecture
+# Kiến trúc tổng thể hệ thống SDN-ML-Blockchain
+
+graph TB
+    subgraph "Application Layer"
+        REST[REST Gateway<br/>Port 3001]
+        CLI[CLI Tools]
+        MONITOR[Monitoring Dashboard]
+    end
+    
+    subgraph "Control Plane - Ryu SDN Controller"
+        FLOW[Flow Monitor<br/>INTERVAL=2s]
+        FEATURE[Feature Extraction<br/>SFE, SSIP, RFIP]
+        ML[ML Detector<br/>Decision Tree/RF/SVM/NB]
+        MITIGATION[Attack Mitigation<br/>Block Port]
+        BCLOG[Blockchain Logger]
+        SPOOFING[IP Spoofing Detection<br/>Optional]
+    end
+    
+    subgraph "Data Plane"
+        SWITCH1[Switch 1]
+        SWITCH2[Switch 2]
+        SWITCH3[Switch 3]
+        HOST1[Hosts 1-3]
+        HOST2[Hosts 4-6]
+        HOST3[Hosts 7-10]
+    end
+    
+    subgraph "Blockchain Layer - Hyperledger Fabric"
+        CHAINCODE[Smart Contract<br/>trustlog.go]
+        PEER1[Peer 0 Org1]
+        PEER2[Peer 1 Org1]
+        ORDERER[Orderer]
+        LEDGER[(Distributed Ledger)]
+    end
+    
+    HOST1 --> SWITCH1
+    HOST2 --> SWITCH2
+    HOST3 --> SWITCH3
+    
+    SWITCH1 -.OpenFlow.-> FLOW
+    SWITCH2 -.OpenFlow.-> FLOW
+    SWITCH3 -.OpenFlow.-> FLOW
+    
+    FLOW --> FEATURE
+    FEATURE --> ML
+    ML -->|Attack Detected| MITIGATION
+    ML -->|Normal Traffic| BCLOG
+    MITIGATION --> BCLOG
+    MITIGATION -.Drop Rules.-> SWITCH1
+    MITIGATION -.Drop Rules.-> SWITCH2
+    MITIGATION -.Drop Rules.-> SWITCH3
+    
+    SPOOFING -.Optional.-> MITIGATION
+    
+    BCLOG --> REST
+    REST --> CHAINCODE
+    CLI --> CHAINCODE
+    
+    CHAINCODE --> PEER1
+    CHAINCODE --> PEER2
+    PEER1 --> LEDGER
+    PEER2 --> LEDGER
+    ORDERER --> LEDGER
+    
+    LEDGER -.Query.-> MONITOR
+    
+    style ML fill:#ff9999
+    style MITIGATION fill:#ffcc99
+    style CHAINCODE fill:#99ccff
+    style LEDGER fill:#99ff99
+

@@ -1,0 +1,62 @@
+# ML Model Comparison
+# So sánh các thuật toán Machine Learning
+
+graph TD
+    subgraph "Input"
+        FEATURES["Features: [sfe, ssip, rfip]"]
+    end
+    
+    subgraph "ML Models"
+        DT[Decision Tree<br/>✓ Default Model<br/>✓ Fast<br/>✓ Interpretable<br/>✓ No scaling needed]
+        RF[Random Forest<br/>✓ Ensemble method<br/>✓ High accuracy<br/>✓ Robust to overfitting<br/>✓ No scaling needed]
+        SVM[Support Vector Machine<br/>✓ Good for small datasets<br/>✓ Kernel: RBF<br/>✓ Gamma: scale<br/>⚠ Slower training]
+        NB[Naive Bayes<br/>✓ Very fast<br/>✓ Probabilistic<br/>✓ Good for real-time<br/>⚠ Assumes independence]
+    end
+    
+    subgraph "Training Process"
+        LOAD[Load dataset/result.csv]
+        PARSE[Parse: numpy.loadtxt<br/>dtype='str', skiprows=1]
+        SPLIT_XY[Split X features, y labels]
+        FIT[model.fit X, y]
+        SAVE[Save to .pkl file]
+    end
+    
+    subgraph "Prediction Process"
+        LOAD_MODEL[Load .pkl file]
+        PREDICT[model.predict features]
+        RESULT["Result: ['0'] or ['1']"]
+    end
+    
+    subgraph "Output"
+        DECISION{if '1' in result}
+        DECISION -->|Yes| ATTACK_OUT[🚨 Attack Detected]
+        DECISION -->|No| NORMAL_OUT[✓ Normal Traffic]
+    end
+    
+    FEATURES --> DT
+    FEATURES --> RF
+    FEATURES --> SVM
+    FEATURES --> NB
+    
+    DT --> LOAD
+    RF --> LOAD
+    SVM --> LOAD
+    NB --> LOAD
+    
+    LOAD --> PARSE
+    PARSE --> SPLIT_XY
+    SPLIT_XY --> FIT
+    FIT --> SAVE
+    
+    SAVE -.Model Ready.-> LOAD_MODEL
+    LOAD_MODEL --> PREDICT
+    PREDICT --> RESULT
+    RESULT --> DECISION
+    
+    style DT fill:#99ff99
+    style RF fill:#99ccff
+    style SVM fill:#ffcc99
+    style NB fill:#ff9999
+    style ATTACK_OUT fill:#ff6666
+    style NORMAL_OUT fill:#66ff66
+

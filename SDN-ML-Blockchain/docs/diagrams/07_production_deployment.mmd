@@ -1,0 +1,89 @@
+# Production Deployment Architecture
+# Kiến trúc triển khai Production
+
+graph TB
+    subgraph "Network Layer"
+        INTERNET[Internet]
+        FIREWALL[Firewall]
+        ROUTER[Router]
+    end
+    
+    subgraph "SDN Infrastructure"
+        CTRL_CLUSTER[Controller Cluster<br/>Active-Standby]
+        CTRL1[Ryu Controller 1<br/>Port 6653]
+        CTRL2[Ryu Controller 2<br/>Port 6653]
+        
+        SWITCH_FABRIC[OpenFlow Switch Fabric]
+        SW1[Switch 1]
+        SW2[Switch 2]
+        SW3[Switch 3]
+        SW4[Switch 4]
+    end
+    
+    subgraph "Blockchain Infrastructure"
+        ORG1[Organization 1]
+        PEER0_1[Peer0 Org1]
+        PEER1_1[Peer1 Org1]
+        
+        ORG2[Organization 2]
+        PEER0_2[Peer0 Org2]
+        
+        ORDERER_CLUSTER[Orderer Cluster<br/>Raft Consensus]
+        ORD1[Orderer 1]
+        ORD2[Orderer 2]
+        ORD3[Orderer 3]
+    end
+    
+    subgraph "Application Layer"
+        GATEWAY[REST Gateway<br/>Load Balanced<br/>Port 3001]
+        MONITOR[Monitoring<br/>Grafana + Prometheus]
+        ADMIN[Admin Dashboard]
+    end
+    
+    subgraph "Storage Layer"
+        DB1[(CouchDB<br/>Peer0 Org1)]
+        DB2[(CouchDB<br/>Peer1 Org1)]
+        DB3[(CouchDB<br/>Peer0 Org2)]
+    end
+    
+    INTERNET --> FIREWALL
+    FIREWALL --> ROUTER
+    ROUTER --> SW1
+    ROUTER --> SW2
+    
+    SW1 --> SW3
+    SW2 --> SW4
+    
+    SW1 -.OpenFlow.-> CTRL1
+    SW2 -.OpenFlow.-> CTRL1
+    SW3 -.OpenFlow.-> CTRL2
+    SW4 -.OpenFlow.-> CTRL2
+    
+    CTRL1 --> GATEWAY
+    CTRL2 --> GATEWAY
+    
+    GATEWAY --> PEER0_1
+    GATEWAY --> PEER1_1
+    GATEWAY --> PEER0_2
+    
+    PEER0_1 --> DB1
+    PEER1_1 --> DB2
+    PEER0_2 --> DB3
+    
+    PEER0_1 --> ORD1
+    PEER1_1 --> ORD2
+    PEER0_2 --> ORD3
+    
+    ORD1 --> ORD2
+    ORD2 --> ORD3
+    
+    GATEWAY --> MONITOR
+    PEER0_1 --> MONITOR
+    PEER1_1 --> MONITOR
+    
+    ADMIN --> GATEWAY
+    
+    style CTRL1 fill:#ff9999
+    style GATEWAY fill:#99ccff
+    style ORD1 fill:#99ff99
+

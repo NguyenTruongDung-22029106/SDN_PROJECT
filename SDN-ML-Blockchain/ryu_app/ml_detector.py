@@ -252,10 +252,10 @@ if __name__ == "__main__":
 
     if args.all:
         print("Training all supported models...")
-    success_count = 0
+        success_count = 0
         for model in SUPPORTED_MODELS:
             if process_model(model, args):
-            success_count += 1
+                success_count += 1
         print(f"\n✓ Successfully trained {success_count}/{len(SUPPORTED_MODELS)} models")
-        else:
+    else:
         process_model(args.model, args)

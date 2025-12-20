@@ -88,7 +88,7 @@ ENABLE_IP_SPOOFING_DETECTION = int(os.environ.get('ENABLE_IP_SPOOFING_DETECTION'
 
 # ML Model Configuration
 # Supported: 'decision_tree', 'random_forest', 'svm', 'naive_bayes'
-ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'decision_tree')
+ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'naive_bayes')
 
 # Logging setup: always write to logs/ryu_controller.log (alongside stdout).
 # Attach handler to the ROOT logger so self.logger (from Ryu) also propagates.
@@ -409,7 +409,11 @@ class BlockchainSDNController(app_manager.RyuApp):
                 reason = 'ml'
 
                 # Phân loại đơn giản giống tác giả gốc
-                if '1' in result:
+                # result is numpy array, e.g. array([1]) or array([0])
+                # Convert to int for comparison to avoid FutureWarning
+                prediction = int(result[0]) if len(result) > 0 else 0
+                
+                if prediction == 1:
                     label = 1
                     self.logger.warning(
                         "🚨 ATTACK DETECTED! (Switch {}, SFE={:.1f}, SSIP={:.1f}, RFIP={:.2f})".format(
@@ -439,7 +443,7 @@ class BlockchainSDNController(app_manager.RyuApp):
                     if PREVENTION == 1:
                         self.logger.info("🛡️ Prevention Enabled - Mitigation Started")
                 
-                if '0' in result:
+                elif prediction == 0:
                     label = 0
                     self.logger.info("✓ Normal Traffic (Switch {})".format(dpid))
                     
@@ -450,18 +454,18 @@ class BlockchainSDNController(app_manager.RyuApp):
                         
                         if current_time - last_log_time >= 30:
                             try:
-                                        event_data = {
-                                            'event_type': 'normal_traffic',
-                                            'switch_id': str(dpid),
+                                event_data = {
+                                    'event_type': 'normal_traffic',
+                                    'switch_id': str(dpid),
                                     'timestamp': int(time.time()),
-                                        'features': {
-                                            'sfe': float(sfe),
-                                            'ssip': float(ssip),
-                                            'rfip': float(rfip)
+                                    'features': {
+                                        'sfe': float(sfe),
+                                        'ssip': float(ssip),
+                                        'rfip': float(rfip)
                                     }
-                                    }
-                                    self.blockchain_client.record_event(event_data)
-                                    self.last_normal_traffic_log[dpid] = current_time
+                                }
+                                self.blockchain_client.record_event(event_data)
+                                self.last_normal_traffic_log[dpid] = current_time
                                 self.logger.info(f"⛓️ Normal traffic logged to blockchain (switch {dpid})")
                             except Exception as e:
                                 self.logger.debug(f"Blockchain logging error (normal traffic): {e}")

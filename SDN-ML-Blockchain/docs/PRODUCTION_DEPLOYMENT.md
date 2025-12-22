@@ -1,7 +1,5 @@
 # Production Deployment Guide
 
- **WARNING**: This project is designed for research and education. Production deployment requires additional security hardening.
-
 ## Production Considerations
 
 ### 1. Security Hardening

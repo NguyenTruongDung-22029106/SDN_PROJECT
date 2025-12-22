@@ -1,28 +1,14 @@
 # Giải Thích Cơ Chế Blocking Mới (Port-Only Blocking)
 
-## 1. Tổng Quan
 
-Cơ chế blocking mới đã được đơn giản hóa để **chỉ block port number**, giống như repo tham khảo:
-https://github.com/vishalsingh45/SDN-DDOS-Detection-and-ML-and-Statistical-methods.git
+## 1. Cơ Chế 
 
-## 2. Cơ Chế Cũ vs Mới
 
-### Cơ Chế Cũ (Đã Loại Bỏ):
-- **flow_specific**: Block flow cụ thể (src_ip + dst_ip)
-  - Flow rule: `in_port=X, ipv4_src=Y, ipv4_dst=Z, eth_type=0x0800, actions=drop`
-  - Chỉ block flow từ IP Y đến IP Z trên port X
-  - Các flow khác vẫn hoạt động
-  
-- **source_ip**: Block tất cả flows từ IP nguồn
-  - Flow rule: `in_port=X, ipv4_src=Y, eth_type=0x0800, actions=drop`
-  - Block tất cả flows từ IP Y trên port X
-  - Các IP khác vẫn hoạt động
-
-### Cơ Chế Mới (Port-Only):
+### Cơ Chế (Port-Only):
 - **port_only**: Block tất cả traffic từ port
   - Flow rule: `in_port=X, actions=drop`
   - Block **TẤT CẢ** traffic từ port X (không phân biệt IP)
-  - Đơn giản, hiệu quả, giống repo tham khảo
+  - Đơn giản, hiệu quả
 
 ## 3. Cách Hoạt Động
 
@@ -52,28 +38,28 @@ https://github.com/vishalsingh45/SDN-DDOS-Detection-and-ML-and-Statistical-metho
    priority=100, in_port=2, actions=drop
    ```
 5. **Kết quả**: 
-   - ✅ Tất cả traffic từ port 2 bị block (không phân biệt IP)
-   - ✅ h2 không thể gửi bất kỳ traffic nào
-   - ✅ Các host khác (h1, h3, h4) vẫn hoạt động bình thường
+   - Tất cả traffic từ port 2 bị block (không phân biệt IP)
+   - h2 không thể gửi bất kỳ traffic nào
+   - Các host khác (h1, h3, h4) vẫn hoạt động bình thường
 
 ## 4. Ưu Điểm
 
-### ✅ Đơn Giản:
+### Đơn Giản:
 - Chỉ cần 1 flow rule: `in_port=X, actions=drop`
 - Không cần phân biệt IP, không cần match src/dst
 - Dễ debug, dễ kiểm tra
 
-### ✅ Hiệu Quả:
+### Hiệu Quả:
 - Block ngay lập tức tất cả traffic từ port
 - Không cần tạo nhiều rules cho nhiều IP
 - Tiết kiệm flow table space
 
-### ✅ Phù Hợp với DDoS:
+### Phù Hợp với DDoS:
 - DDoS thường từ 1 port (1 host)
 - Block port = block toàn bộ host
 - Ngăn chặn hiệu quả
 
-### ✅ Giống Repo Tham Khảo:
+### Giống Repo Tham Khảo:
 - Dễ so sánh, dễ hiểu
 - Phù hợp với nghiên cứu
 
@@ -191,12 +177,6 @@ def block_port(self, datapath, portnumber, src_ip=None, dst_ip=None,
     # ... blockchain logging ...
 ```
 
-## 11. So Sánh với Repo Tham Khảo
-
-### Repo Tham Khảo:
-- https://github.com/vishalsingh45/SDN-DDOS-Detection-and-ML-and-Statistical-methods.git
-- Sử dụng SVM để detect DDoS
-- Block port number khi phát hiện attack
 
 ### Hệ Thống Hiện Tại:
 - ✅ Sử dụng ML (Random Forest, SVM, Decision Tree, Naive Bayes)

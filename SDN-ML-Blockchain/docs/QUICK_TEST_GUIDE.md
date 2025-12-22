@@ -110,23 +110,7 @@ tail -f logs/ryu_controller.log | grep "Normal"
 1. **Thời gian block**: Flow rule block có `hardtime=60` (60 giây), sau đó tự động unblock
 2. **ML Detection**: Cần đợi ML phát hiện attack (khoảng 2-4 giây sau khi có traffic)
 3. **IP Spoofing**: Chỉ phát hiện khi IP không khớp với ARP table đã học
-4. **Blocking Mechanism**: Chỉ block port number (giống repo tham khảo). Block port = block tất cả traffic từ port đó
+4. **Blocking Mechanism**: Chỉ block port number. Block port = block tất cả traffic từ port đó
 
 ---
 
-## 🔧 Troubleshooting
-
-### Không thấy attack được phát hiện:
-- **Nguyên nhân:** Traffic chưa đủ mạnh hoặc chưa có IP spoofing
-- **Giải pháp:** Tăng số lượng packets, dùng `--rand-source` để tạo IP spoofing
-
-### Không thấy blocking:
-- **Nguyên nhân:** Chưa phát hiện IP spoofing hoặc IP là IP thật của host
-- **Giải pháp:** Đảm bảo có IP spoofing (dùng `--rand-source`)
-
-### Port bị block quá lâu:
-- **Nguyên nhân:** Hard timeout là 60 giây
-- **Giải pháp:** Đợi 60 giây hoặc xóa flow rule thủ công:
-  ```bash
-  sudo ovs-ofctl del-flows s2 priority=100
-  ```

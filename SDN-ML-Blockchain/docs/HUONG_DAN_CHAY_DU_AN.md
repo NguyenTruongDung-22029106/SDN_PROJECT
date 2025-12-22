@@ -59,25 +59,6 @@ ryu --version
 
 ---
 
-### Lưu ý quan trọng: Chạy dự án **không cần Docker-Compose**
-
-Dự án được thiết kế để bạn **không cần dùng Docker-Compose riêng của dự án**. Cấu trúc mặc định:
-
-- **Bắt buộc dùng Docker**: chỉ cho **Hyperledger Fabric** (test-network của `fabric-samples`).
-  - Bạn chỉ cần chạy script:
-    ```bash
-    cd fabric-samples/test-network
-    ./network.sh up createChannel -c sdnchannel -ca
-    ```
-  - Script này sẽ tự tạo các container Fabric (peer, orderer, CA, CouchDB, …).
-- **Chạy trực tiếp trên host (không Docker)**:
-  - **Blockchain Gateway (Node.js)**: chạy bằng `node gateway_node_server.js`.
-  - **Ryu SDN Controller**: chạy bằng `ryu-manager --observe-links controller_blockchain.py`.
-  - **Mininet + topology + traffic/attack scripts**: chạy bằng `sudo python3 custom_topo.py` và các script trong `scripts/`.
-- **Không bắt buộc dùng** `configs/docker-compose.yml`:
-  - File này chỉ dùng nếu bạn muốn container hóa thêm Gateway/Ryu.
-  - Đối với mục đích học tập, demo, chạy trên một máy, bạn có thể **bỏ qua hoàn toàn** Docker-Compose và chỉ cần làm theo các bước trong tài liệu này.
-
 ---
 
 ## Cài Đặt Ban Đầu

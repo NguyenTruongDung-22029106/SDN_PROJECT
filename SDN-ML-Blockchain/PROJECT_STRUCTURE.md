@@ -1,6 +1,6 @@
 # Cấu Trúc Dự Án SDN-ML-Blockchain
 
-> **Cập nhật:** 28/11/2025 - Dự án đã được sắp xếp và loại bỏ các file thừa thải
+> **Cập nhật:** 28/11/2025
 
 ---
 
@@ -84,21 +84,6 @@ SDN-ML-Blockchain/
      docker-compose.yml         # Docker compose
 
 ```
-
----
-
-## Files Đã Loại Bỏ (Redundant/Outdated)
-
-### Đã Xóa:
-1. **`PROJECT_STRUCTURE.txt`** - Outdated, replaced by this file
-2. **`docs/QUICKSTART.md`** - Duplicate of `QUICK_START.md`
-3. **`docs/HOW_TO_RUN_3_TERMINALS.md`** - Outdated, replaced by `MANUAL_SETUP.md`
-4. **`docs/HUONG_DAN_TIENG_VIET.md`** - Old version, replaced by `HUONG_DAN_CHAY_DU_AN.md`
-5. **`docs/README.md`** - Duplicate, using root `README.md`
-
-### Đã Di Chuyển:
-1. **CSV files** từ `ryu_app/` → `data/` (14 files)
-2. **Log files** từ `blockchain/` và `ryu_app/` → `logs/`
 
 ---
 
@@ -277,4 +262,3 @@ detector.save_model('ml_model_decision_tree.pkl')
 
 ---
 
-** Project is now clean and well-organized!**

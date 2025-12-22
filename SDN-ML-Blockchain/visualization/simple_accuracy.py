@@ -39,13 +39,22 @@ def main():
         if not os.path.exists(path):
             print(f"{name:>13}: Model file not found: {path}")
             continue
-        clf = joblib.load(path)
-        # Nếu model là dict, lấy ra object model
-        if isinstance(clf, dict) and "model" in clf:
-            clf = clf["model"]
-        preds = clf.predict(x_test)
-        acc = accuracy_score(y_test, preds)
-        print(f"{name:>13}: Accuracy = {acc*100:6.2f}%")
+        try:
+            clf = joblib.load(path)
+            # Nếu model là dict, lấy ra object model
+            if isinstance(clf, dict) and "model" in clf:
+                clf = clf["model"]
+            
+            # Predict và convert to native Python int to avoid numpy comparison warning
+            preds = clf.predict(x_test)
+            # Convert numpy arrays to native Python types
+            y_test_native = [int(y) for y in y_test]
+            preds_native = [int(p) for p in preds]
+            
+            acc = accuracy_score(y_test_native, preds_native)
+            print(f"{name:>13}: Accuracy = {acc*100:6.2f}%")
+        except Exception as e:
+            print(f"{name:>13}: Error - {e}")
 
 
 if __name__ == "__main__":

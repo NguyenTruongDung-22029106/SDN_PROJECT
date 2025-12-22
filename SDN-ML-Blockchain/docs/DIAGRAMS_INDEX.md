@@ -1,7 +1,5 @@
 # SDN-ML-Blockchain System Diagrams Index
 
-Tài liệu này tổng hợp tất cả các sơ đồ kiến trúc hệ thống. Tất cả các diagram được vẽ bằng Mermaid và phản ánh chính xác 100% hệ thống hiện tại.
-
 ---
 
 ## 1. System Overview Architecture
@@ -780,41 +778,4 @@ graph TD
 
 ---
 
-## 📊 Thống kê
-
-- **Tổng số diagrams**: 12
-- **Loại diagrams**: 
-  - Flowchart: 5
-  - Sequence Diagram: 2
-  - Graph: 3
-  - Class Diagram: 1
-  - State Diagram: 1
-- **Độ phủ**: 100% hệ thống
-
-## ✅ Đặc điểm
-
-Tất cả các diagram:
-- ✅ Phản ánh chính xác 100% code hiện tại
-- ✅ KHÔNG có `confidence`, `threshold`, `predict_proba`
-- ✅ KHÔNG có `TrustScore` trong blockchain
-- ✅ Có `ENABLE_IP_SPOOFING_DETECTION`
-- ✅ APP_TYPE=0 → `dataset/result.csv`, APP_TYPE=1 → `data/result.csv`
-- ✅ ML chỉ dùng `model.predict()`
-- ✅ Decision logic: `if '1' in result`
-- ✅ Default model: `decision_tree`
-- ✅ Blockchain passive mode (chỉ logging)
-
-## 🎯 Cách sử dụng
-
-1. **Xem trực tiếp**: File này sẽ render tất cả diagrams trên GitHub/GitLab
-2. **Export ảnh**: Chạy `cd docs/diagrams && ./export_diagrams.sh png`
-3. **Chỉnh sửa**: Mở file `.mmd` tương ứng trong `docs/diagrams/`
-4. **Online editor**: Copy nội dung vào https://mermaid.live/
-
-## 📚 Tài liệu liên quan
-
-- [Architecture Overview](ARCHITECTURE.md)
-- [Project Report](PROJECT_REPORT.md)
-- [Quick Start Guide](QUICK_START.md)
-- [Diagrams README](diagrams/README.md)
 

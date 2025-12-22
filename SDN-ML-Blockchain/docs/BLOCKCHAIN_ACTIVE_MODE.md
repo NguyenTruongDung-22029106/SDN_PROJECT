@@ -153,14 +153,9 @@ Response:
 
 ## BlockchainClient Methods
 
-### Còn lại:
 - `record_event(event)` - Ghi log events
 - `get_recent_attacks(time_window)` - Lấy danh sách attacks
 
-### Đã xóa:
-- ❌ `get_mitigation_action()` - Query blockchain để quyết định mitigation
-- ❌ `check_coordinated_attack()` - Check coordinated attack
-- ❌ `query_trust_log()` - Query trust score
 
 ---
 
@@ -231,12 +226,12 @@ tail -f logs/ryu_controller.log | grep "Normal traffic"
 ## Kết Luận
 
 **Blockchain giờ đây chỉ là "audit log"**:
-- ✅ Lưu trữ tất cả events
-- ✅ Không quyết định hành động
-- ✅ Không ảnh hưởng đến performance
-- ✅ Đơn giản, dễ maintain
+- Lưu trữ tất cả events
+- Không quyết định hành động
+- Không ảnh hưởng đến performance
+- Đơn giản, dễ maintain
 
 **Blocking hoàn toàn độc lập:**
-- ✅ Phát hiện IP spoofing → Block ngay
-- ✅ Không cần query blockchain
-- ✅ Nhanh, hiệu quả
+- Phát hiện IP spoofing → Block ngay
+- Không cần query blockchain
+- Nhanh, hiệu quả

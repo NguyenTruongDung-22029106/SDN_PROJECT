@@ -4,49 +4,8 @@
 
 Khi SDN Controller phát hiện events (attack, switch connected, etc.), nó sẽ ghi vào **Hyperledger Fabric Blockchain**. Blockchain lưu trữ:
 - **Security Events**: Các sự kiện bảo mật (attack, port blocked, switch connected)
-- **Trust Logs**: Điểm tin cậy của từng switch/device
 
----
-
-## Cách 1: Xem Qua REST API Gateway (Dễ Nhất)
-
-### 1.1. Xem Trust Score của Switch
-
-**Trust Score** là điểm tin cậy của switch (0.0 = không tin cậy, 1.0 = rất tin cậy).
-
-> **Lưu ý quan trọng:**  
-> Trong chaincode `trustlog.go`, `device_id` được lưu là **DPID dạng số** (ví dụ `"1"`, `"2"`, `"3"`, `"4"`), tương ứng với `dpid` của switch trong Ryu, **không** phải chuỗi `"s1"`, `"s2"`.  
-> Vì vậy, khi query trust log phải dùng `"1"`, `"2"`... chứ không dùng `"s1"`.
-
-```bash
-# Xem trust score của switch có dpid = 1
-curl http://localhost:3001/api/v1/trust/1
-
-# Format đẹp hơn (cần cài jq: sudo apt install jq)
-curl -s http://localhost:3001/api/v1/trust/1 | jq .
 ```
-
-**Kết quả mẫu:**
-```json
-{
-  "success": true,
-  "trust_log": {
-    "device_id": "1",
-    "current_trust": 0.8,
-    "event_count": 15,
-    "last_update": 1732750000,
-    "status": "trusted"
-  }
-}
-```
-
-**Giải thích:**
-- `device_id`: ID của switch (1, 2, 3, 4 - trùng với dpid trong Mininet/Ryu)
-- `current_trust`: Điểm tin cậy hiện tại (0.0 - 1.0)
-- `event_count`: Số lượng events đã ghi
-- `last_update`: Timestamp của lần cập nhật cuối
-- `status`: Trạng thái (`trusted`, `suspicious`, `blocked`)
-
 ---
 
 ### 1.2. Xem Recent Attacks
@@ -311,17 +270,9 @@ Trust log tổng hợp thông tin của một switch:
 }
 ```
 
-**Note:** Trust score management has been removed. Detection is now handled purely by ML model.
 
 ---
 
-## Tóm Tắt Các Cách Xem
-
-| Cách | Ưu điểm | Nhược điểm | Khi nào dùng |
-|------|---------|------------|--------------|
-| **REST API** | Dễ dùng, nhanh | Không thấy chi tiết transaction | Xem nhanh, test |
-| **Peer CLI** | Chi tiết, đầy đủ | Phức tạp hơn, cần setup env | Debug, kiểm tra kỹ |
-| **Logs** | Xem real-time | Chỉ thấy events mới | Monitor, debug |
 
 ---
 

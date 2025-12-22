@@ -67,9 +67,8 @@ h1 ping -f -c 200 10.0.0.2
 4) Dừng Mininet, dừng controller.
 
 ## 4. Sau thu thập
-1) ~~Lọc và dựng dataset~~ **KHÔNG CẦN** - Controller đã ghi trực tiếp vào `dataset/result.csv` với format đúng!
 
-2) Huấn luyện 4 mô hình và xuất .pkl:
+Huấn luyện 4 mô hình và xuất .pkl:
 ```bash
 # Train tất cả models và lưu .pkl files
 python3 ryu_app/ml_detector.py --all

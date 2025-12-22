@@ -88,7 +88,7 @@ ENABLE_IP_SPOOFING_DETECTION = int(os.environ.get('ENABLE_IP_SPOOFING_DETECTION'
 
 # ML Model Configuration
 # Supported: 'decision_tree', 'random_forest', 'svm', 'naive_bayes'
-ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'naive_bayes')
+ML_MODEL_TYPE = os.environ.get('ML_MODEL_TYPE', 'decision_tree')
 
 # Logging setup: always write to logs/ryu_controller.log (alongside stdout).
 # Attach handler to the ROOT logger so self.logger (from Ryu) also propagates.

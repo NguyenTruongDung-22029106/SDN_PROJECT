@@ -41,12 +41,12 @@ Xây dựng hệ thống phát hiện và giảm thiểu tấn công DDoS trong 
 ```
 
 ### 1.3. Tính Năng Chính
-- ✅ Phát hiện DDoS tự động bằng Machine Learning
-- ✅ Giảm thiểu tấn công bằng cách block port
-- ✅ Ghi log sự kiện vào blockchain (immutable)
-- ✅ Hỗ trợ nhiều ML algorithms (Decision Tree, Random Forest, SVM, Naive Bayes)
-- ✅ Phát hiện IP spoofing
-- ✅ Tự động unblock sau 60 giây
+- Phát hiện DDoS tự động bằng Machine Learning
+- Giảm thiểu tấn công bằng cách block port
+- Ghi log sự kiện vào blockchain (immutable)
+- Hỗ trợ nhiều ML algorithms (Decision Tree, Random Forest, SVM, Naive Bayes)
+- Phát hiện IP spoofing
+- Tự động unblock sau 60 giây
 
 ---
 
@@ -307,13 +307,7 @@ Process:
   4. Save model to .pkl file: ml_model_{type}.pkl
 ```
 
-**Lưu ý**: 
-- ❌ KHÔNG có threshold tuning
-- ❌ KHÔNG có train/test split
-- ❌ KHÔNG có validation
-- ✅ Đơn giản: Load → Train → Save
-
-#### 4.2.2. Model Prediction (GIỐNG TÁC GIẢ GỐC)
+#### 4.2.2. Model Prediction
 ```python
 Input: [sfe, ssip, rfip]
 Process:
@@ -329,12 +323,6 @@ Process:
      - Nếu '0' in prediction:
        → NORMAL
 ```
-
-**Lưu ý**:
-- ❌ KHÔNG có confidence
-- ❌ KHÔNG có threshold
-- ❌ KHÔNG có predict_proba()
-- ✅ Chỉ dùng model.predict() - đơn giản nhất
 
 **Ví dụ**:
 ```python
@@ -517,7 +505,6 @@ type SecurityEvent struct {
     EventType    string  // attack_detected, port_blocked, normal_traffic
     SwitchID     string
     Timestamp    int64
-    TrustScore   float64  // Deprecated, không dùng nữa
     Action       string
     Details      map[string]interface{}
     RecordedBy   string
@@ -950,21 +937,21 @@ Project Root: /home/obito/SDN_Project/SDN-ML-Blockchain/
 ## 11. KẾT LUẬN
 
 ### 11.1. Điểm Mạnh
-- ✅ Tích hợp ML và Blockchain
-- ✅ Tự động phát hiện và giảm thiểu DDoS
-- ✅ Immutable logging (blockchain)
-- ✅ Hỗ trợ nhiều ML algorithms
-- ✅ Dễ mở rộng và tùy chỉnh
-- ✅ Port-only blocking (đơn giản, hiệu quả)
-- ✅ Auto unblock sau 60 giây
-- ✅ IP spoofing detection
+- Tích hợp ML và Blockchain
+- Tự động phát hiện và giảm thiểu DDoS
+- Immutable logging (blockchain)
+- Hỗ trợ nhiều ML algorithms
+- Dễ mở rộng và tùy chỉnh
+- Port-only blocking (đơn giản, hiệu quả)
+- Auto unblock sau 60 giây
+- IP spoofing detection
 
 ### 11.2. Hạn Chế
-- ⚠️ Block toàn bộ port (không linh hoạt)
-- ⚠️ Phụ thuộc vào ML model accuracy
-- ⚠️ Blockchain latency (nếu dùng direct CLI)
-- ⚠️ Chỉ hỗ trợ 3 features (SFE, SSIP, RFIP)
-- ⚠️ Hard timeout cố định (60 giây)
+- Block toàn bộ port (không linh hoạt)
+- Phụ thuộc vào ML model accuracy
+- Blockchain latency (nếu dùng direct CLI)
+- Chỉ hỗ trợ 3 features (SFE, SSIP, RFIP)
+- Hard timeout cố định (60 giây)
 
 ### 11.3. Hướng Phát Triển
 - 🔮 Deep Learning models (LSTM, CNN)

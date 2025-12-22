@@ -386,4 +386,3 @@ PREVENTION=0 ./scripts/start_system.sh
 
 ---
 
-**Với 3 scripts này, bạn sẽ KHÔNG bao giờ gặp lỗi lặp lại nữa! **
